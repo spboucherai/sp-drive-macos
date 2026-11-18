@@ -40,14 +40,14 @@ F = scénario par le Finder (`Scripts/finder-scenario.sh`). **Non vérifié** es
 
 | Fonction | État | Vérifié |
 |---|---|---|
-| Emplacement SP Drive dans le Finder (File Provider répliqué) | construit, signé, enregistré par le système | enregistrement et apparition dans `~/Library/CloudStorage` : oui. **Lecture, écriture et synchronisation par le Finder : non vérifiées** — macOS garde l'emplacement désactivé tant que le propriétaire ne l'active pas dans Réglages Système |
+| Emplacement SP Drive dans le Finder (File Provider répliqué) | oui | F : 22 / 22 sur la variante de test (lecture, modification, création, renommage, déplacement, conflit, hors ligne avec redémarrage de l'extension, suppression). Sur la version distribuée : après connexion et activation par le propriétaire, **non observé** |
 | Liaison d'appareil par code | oui | T, et utilisée pour connecter l'app de test |
 | Journal d'opérations hors ligne (créer, renommer, déplacer, corbeille, favoris), rejoué à la reconnexion | oui | T (serveur arrêté, « redémarrage », reprise) |
 | Ajout de fichiers hors ligne | oui (copie mise en attente) | T |
 | Synchronisation incrémentale (flux de changements) | oui | T |
-| Détection de conflit, copie de conflit, résolution | oui | T (moteur, file) ; **par le Finder : F, non exécuté** |
-| Disponibilité hors ligne (épingler fichier / dossier) | oui, via la politique de contenu du File Provider | miroir : T. **Téléchargement et conservation réels : non vérifiés** (emplacement désactivé) ; sans emplacement, l'app refuse et l'explique : A |
-| Libérer l'espace local / vider le cache | oui | cache : A. **Éviction : non vérifiée** |
+| Détection de conflit, copie de conflit, résolution | oui | T (moteur, file), F (par le Finder) ; écran de résolution : V |
+| Disponibilité hors ligne (épingler fichier / dossier) | oui, politique de contenu du File Provider + lecture immédiate par l'app | fichier : téléchargé, SHA-256 identique, éviction refusée par le système, A. **Dossier entier : non vérifié** |
+| Libérer l'espace local / vider le cache | oui | éviction d'un fichier désépinglé puis relecture intacte : vérifiée ; cache : A |
 | File de transferts : pause, reprise, annulation, réessai, priorités, parallélisme adaptatif, limites de débit | oui | T |
 | Barre de menus | oui | **non vérifiée à l'écran** |
 | Notifications (lot terminé, conflit, erreur persistante, espace, dépôt) | oui | **non vérifiées à l'écran** |

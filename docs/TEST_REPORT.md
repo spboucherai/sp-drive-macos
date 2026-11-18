@@ -47,7 +47,27 @@ la vérification côté serveur est le code de production).
 | `-spdSelfTest` dans la variante de test, signée Developer ID, sandboxée, contre le backend local | **19 / 19** : jeton lisible dans le trousseau partagé, session d'appareil, dossier / renommage / favori confirmés par le serveur, envoi et téléchargement dans `~/Downloads` vérifiés par SHA-256, copie d'aperçu, versions et restauration, lien de partage et révocation, duplication, corbeille et restauration, refus expliqué de l'épinglage sans emplacement Finder, journal vide à la fin |
 | `-spdTour` | 22 écrans et feuilles affichés sans plantage (liste, grille, inspecteur, recherche, filtres, récents, favoris, hors ligne, partages, dépôts, transferts, téléchargements, conflits, corbeille, stockage, 6 feuilles) |
 | Connexion réelle de l'app de test | par code d'appareil, approuvé par le compte de test |
-| Extension File Provider | reconnue par `pluginkit`, domaine créé (`~/Library/CloudStorage/SPDriveDev-Dev`), état `user-disabled` |
+| Extension File Provider | reconnue par `pluginkit`, domaine créé (`~/Library/CloudStorage/SPDriveDev-Dev`), activé par le propriétaire dans Réglages Système à 15:50 |
+
+## Par le Finder — `Scripts/finder-scenario.sh` : **22 / 22**
+
+Variante de test, emplacement « SP Drive Dev », backend local. Toutes les opérations passent par le système de fichiers
+(`~/Library/CloudStorage/SPDriveDev-Dev`), donc par `fileproviderd` et l'extension ; chaque contrôle lit le serveur ou le disque.
+
+| Étape | Vérifié |
+|---|---|
+| 1. Parcourir, télécharger | dossier créé par un autre appareil visible ; petit fichier lu = contenu du serveur ; fichier de 20 Mo lu avec le SHA-256 du serveur |
+| 2. Modifier | fichier modifié dans le Finder → version 2 sur le serveur, contenu identique |
+| 3. Créer, renommer, déplacer | fichier et dossier créés, renommage, déplacement : confirmés par le serveur |
+| 4. Conflit | fichier changé par un autre appareil puis modifié ici depuis l'ancienne version → copie « (conflit …) » sur le serveur, version de l'autre appareil **non écrasée**, version de ce Mac préservée, le Finder montre les deux |
+| 5. Hors ligne | serveur arrêté : modification d'un petit fichier et d'un fichier de 20 Mo, ajout d'un fichier, création d'un dossier avec un fichier ; application et extension tuées puis relancées ; changements toujours sur le Mac ; serveur relancé → tout arrive intact (SHA-256) |
+| 6. Supprimer | suppression dans le Finder → corbeille du serveur (pas de destruction) ; restauration sur le serveur → retour dans le Finder |
+
+Épinglage hors ligne (essai dédié, fichier de 6 Mo jamais ouvert) : épinglé par l'app → téléchargé (0 → 11 720 blocs),
+SHA-256 identique ; éviction demandée → **refusée par le système** tant qu'il est épinglé ; désépinglé → évincé (0 bloc) ;
+relu → contenu identique. Constat au passage : `requestDownloadForItem` est accepté mais différé par macOS sur batterie ;
+l'app lit donc elle-même les fichiers épinglés (lecture coordonnée) pour un téléchargement immédiat.
+Auto-vérification relancée avec l'emplacement actif : **19 / 19**, épinglage compris.
 
 Plantage rencontré et corrigé pendant ces essais : cellules de tableau, menus et barre d'outils lisaient le modèle dans
 l'environnement SwiftUI, absent à ces endroits sur macOS 27 ; le modèle leur est maintenant passé explicitement.
@@ -60,21 +80,26 @@ l'environnement SwiftUI, absent à ces endroits sur macOS 27 ; le modèle leur e
 | Profils | 4 profils Developer ID créés par l'API App Store Connect (clé existante) : app, extension, et leurs variantes `.dev` |
 | `Scripts/release.sh` | archive Release universelle ; un premier essai a échoué sur « The timestamp service is not available » (service d'Apple), le suivant a réussi |
 | `Scripts/verify-release.sh` | **32 contrôles, 0 échec** (app et extension : signature, runtime durci, horodatage, sandbox, groupe, trousseau, profils ; domaine associé ; point d'extension ; aucun moteur web ; aucun reliquat de développement ; aucune exception ATS) |
-| Notarisation | app : **Accepted** (`09917a48-b804-445c-af33-0f52ee867c4b`) ; DMG : **Accepted** (`21ed54f6-3f90-4eec-8059-33eb050cbbeb`) ; tickets agrafés |
+| Notarisation | build final — app : **Accepted** (`1ca74420-e135-4316-8a57-75d47371b32f`) ; DMG : **Accepted** (`62555e76-2f34-4708-ad37-d6c2aa2ab8ee`) ; tickets agrafés (un premier build avait été accepté à 15:27 : `09917a48…`, `21ed54f6…`) |
 | Gatekeeper | `spctl` : app et DMG « accepted — Notarized Developer ID » |
 | DMG | `dist/SPDrive-1.0.0.dmg`, SHA-256 dans `dist/SPDrive-1.0.0.dmg.sha256` |
+| Installation | DMG monté, signature et ticket validés sur l'image, app copiée dans `/Applications`, acceptée par Gatekeeper, lancée : écran de connexion sur drive.spboucher.ai |
 
 ## Non vérifié
 
-1. **Tout ce qui passe par le Finder** : ouvrir, modifier, enregistrer, renommer, supprimer dans l'emplacement SP Drive ;
-   synchronisation des modifications ; conflit vu par le système ; hors ligne par le Finder ; épinglage et éviction ;
-   vignettes. Cause : macOS garde l'emplacement désactivé jusqu'à l'accord du propriétaire dans Réglages Système, et le
-   mode de test d'Apple exige un droit que l'API ne permet pas d'obtenir. Le scénario `Scripts/finder-scenario.sh` est
-   écrit et **n'a pas été exécuté**.
-2. **Passkey réelle (Touch ID)** dans l'application distribuée, contre la production.
+1. **Le Finder sur la version distribuée** : le scénario a été exécuté sur la variante de test (même code, autres
+   identifiants). L'emplacement « SP Drive » de production n'existe qu'après connexion du propriétaire, qui devra aussi
+   l'activer dans Réglages Système. Vignettes dans le Finder : non observées. Ouverture et enregistrement depuis une
+   application graphique (Pages, Aperçu…) : non observés — les écritures ont été faites par le système de fichiers.
+2. **Passkey réelle (Touch ID)** dans l'application distribuée, contre la production. Premier essai du propriétaire à
+   15:50 : erreur 1004. Cause établie : le robot d'Apple avait demandé le fichier d'association à 15:08, avant la mise en
+   production de la route ; le site avait répondu sa page HTML et le CDN d'Apple a gardé « Bad JSON content » une heure
+   (visible avec `nscurl -i https://app-site-association.cdn-apple.com/a/v1/drive.spboucher.ai`, pas avec `curl`, dont
+   l'en-tête `Accept-Encoding` désigne une autre entrée du cache). À 16:08 le CDN renvoie le bon fichier et `swcd` ne
+   journalise plus de refus. **Le nouvel essai du propriétaire n'est pas encore confirmé.**
 3. **Version distribuée contre la production** : elle n'a pas été lancée connectée (aucun compte de test en production).
 4. **Redémarrage réel du Mac** ; **reprise après veille** (le code réagit au réveil, non observé).
 5. Notifications, barre de menus, verrou Touch ID, ouverture de session, Coup d'œil : non observés à l'écran.
-6. VoiceOver ; autre Mac, Intel, macOS 14–26 ; test d'installation depuis le DMG.
+6. VoiceOver ; autre Mac, Intel, macOS 14–26.
 7. Tests d'interface XCUITest : aucun (la tournée et l'auto-vérification en tiennent lieu, sans piloter la souris).
 8. Débit sur liaison lente ou coûteuse : le conseiller de parallélisme n'est testé que par ses règles.
