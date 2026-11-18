@@ -80,7 +80,8 @@ final class OfflineJournalTests: LiveCase {
         try j.trash([try XCTUnwrap(s!.item(toss.id))])
         // the mirror already shows the intent
         XCTAssertEqual(try s!.children(of: nested.id).map(\.id), [keep.id]); XCTAssertEqual(try s!.item(ren.id)?.name, "nouveau nom.txt")
-        XCTAssertNotNil(try s!.item(toss.id)?.trashedAt); XCTAssertEqual(try s!.search(LocalSearch(text: "nouveau")).map(\.id), [ren.id])
+        XCTAssertNotNil(try s!.item(toss.id)?.trashedAt); var inFolder = LocalSearch(text: "nouveau"); inFolder.folderID = folder.id // the account is shared with other runs: look in this test's folder
+        XCTAssertEqual(try s!.search(inFolder).map(\.id), [ren.id])
         do { try j.rename(try XCTUnwrap(s!.item(keep.id)), to: "garde.txt"); try j.move([local], to: nested.id); XCTFail("a folder cannot go into itself") } catch { XCTAssertEqual((error as? DriveError)?.code, "move_into_self") }
         // a file added offline into the folder created offline
         let work = dir.appendingPathComponent("work")

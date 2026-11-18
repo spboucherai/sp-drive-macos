@@ -55,6 +55,21 @@ final class DriveDomain: Sendable {
         guard let manager else { return }
         try await manager.requestDownloadForItem(withIdentifier: NSFileProviderItemIdentifier(id), requestedRange: NSRange(location: NSNotFound, length: 0))
     }
+    /// Downloads a file now by reading it through the Finder location. `requestDownload` only queues the download in a
+    /// system activity that macOS defers (on battery, under load); a coordinated read makes the system fetch at once.
+    func materialize(_ id: String) async throws {
+        guard let manager else { return }
+        let url = try await manager.getUserVisibleURL(for: NSFileProviderItemIdentifier(id))
+        try await Task.detached(priority: .utility) {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            var coordination: NSError?, inner: Error?
+            NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordination) { actual in
+                do { let h = try FileHandle(forReadingFrom: actual); _ = try h.read(upToCount: 1); try h.close() } catch { inner = error }
+            }
+            if let e = coordination ?? inner { throw e }
+        }.value
+    }
     /// Removes the local copy of an item and keeps the item itself. The system refuses when the copy is pinned or holds changes not yet sent.
     func evict(_ id: String) async throws {
         guard let manager else { return }

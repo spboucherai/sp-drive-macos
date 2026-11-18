@@ -46,6 +46,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     private let network = NetworkMonitor()
     private var tasks: [Task<Void, Never>] = []
     private var linkTask: Task<Void, Never>?
+    private var pinTask: Task<Void, Never>?
     private var finishedInBatch = (uploads: 0, downloads: 0, lastName: "")
     private var lastDepositCheck = Date.distantPast
     private var lastActive = Date()
@@ -158,6 +159,8 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         let target = d.string(forKey: "spdSelect").flatMap { n in items.first { $0.name == n } } ?? (d.bool(forKey: "spdSelectFirst") ? items.first : nil)
         if let target { nav.selection = [target.id] }
         if d.bool(forKey: "spdInspector") { nav.showInspector = true }
+        if let t = target, d.object(forKey: "spdPin") != nil { let on = d.bool(forKey: "spdPin"); Task { await refreshFinderState(); await setPinned([t], on) } }
+        if let t = target, d.bool(forKey: "spdEvict") { Task { await refreshFinderState(); let r = await freeUpSpace([t.id]); AppEnvironment.log.info("evict: freed \(r.freed) kept \(r.kept)") } }
         switch d.string(forKey: "spdSheet") {
         case "share": if let t = target { nav.sheet = .share(t) }
         case "versions": if let t = target { nav.sheet = .versions(t) }
@@ -470,9 +473,24 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         revision += 1
         DriveDomain.shared.signalChanges()
         if on {
-            for i in items {
-                let files = i.isFolder ? ((try? store.subtreeFiles(of: i.id)) ?? []) : [i]
-                for f in files.prefix(5000) { try? await DriveDomain.shared.requestDownload(f.id) }
+            // the policy makes the system keep these files; reading them now makes it fetch them now (in the background, two at a time)
+            let files = items.flatMap { i in i.isFolder ? ((try? store.subtreeFiles(of: i.id)) ?? []) : [i] }.filter { !isLocal($0.id) }
+            pinTask = Task.detached(priority: .utility) { [weak self] in
+                var failed = 0
+                await withTaskGroup(of: Bool.self) { group in
+                    var running = 0
+                    for f in files {
+                        if running >= 2 { if await group.next() == false { failed += 1 }; running -= 1 }
+                        group.addTask { do { try await DriveDomain.shared.materialize(f.id); return true } catch { AppEnvironment.log.notice("pinned item not fetched yet: \(String(describing: error), privacy: .public)"); return false } }
+                        running += 1
+                    }
+                    for await ok in group where !ok { failed += 1 }
+                }
+                let n = failed
+                await MainActor.run { [weak self] in
+                    self?.revision += 1
+                    if n > 0 { self?.banner = Banner(text: "\(n) élément(s) épinglé(s) n’ont pas encore pu être téléchargés ; macOS réessaiera.", isError: false) }
+                }
             }
         }
     }

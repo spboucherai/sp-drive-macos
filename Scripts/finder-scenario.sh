@@ -27,7 +27,7 @@ start_app() { "$APPBIN" -ApplePersistenceIgnoreState YES >/tmp/spdrive-dev-app.l
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 
 echo "== 0. Preconditions"
-fileproviderctl dump ai.spboucher.spdrive.dev.fileprovider 2>/dev/null | grep -q "user-disabled" && { echo "  the location is not turned on in System Settings: nothing can be validated"; exit 2; }
+fileproviderctl dump ai.spboucher.spdrive.dev.fileprovider 2>/dev/null | grep -Eq "enabled: +yes" || { echo "  the location is not turned on in System Settings: nothing can be validated"; exit 2; }
 check "the Finder location exists" '[ -d "$FP" ]'
 app_running || start_app
 ROOT="$(curl -fsS "$SPDRIVE_URL/api/v1/sync/cursor" -H "Authorization: Bearer $SPDRIVE_TOKEN" | sed -E 's/.*"rootId":"([^"]+)".*/\1/')"
@@ -37,7 +37,7 @@ echo "== 1. A folder made on another device appears in the Finder; its file down
 D="$("$CLI" mkdir "$ROOT" "$NAME" | cut -f2)"
 printf 'contenu créé sur le serveur\n' > "$T/a.txt"; "$CLI" put "$T/a.txt" "$D" "note.txt" >/dev/null
 head -c 20000000 /dev/urandom > "$T/big.bin"; "$CLI" put "$T/big.bin" "$D" "gros.bin" >/dev/null
-check "folder listed by the Finder location" 'until_ok 60 "ls \"$FP\" | grep -qx \"$NAME\""'
+check "folder listed by the Finder location" 'until_ok 60 "[ -d \"$FP/$NAME\" ]"'   # by path: the file system hands names back decomposed (NFD)
 L="$FP/$NAME"
 check "its files listed" 'until_ok 60 "[ -e \"$L/note.txt\" ] && [ -e \"$L/gros.bin\" ]"'
 check "small file read through the Finder = server content" '[ "$(cat "$L/note.txt" 2>/dev/null)" = "contenu créé sur le serveur" ]'
