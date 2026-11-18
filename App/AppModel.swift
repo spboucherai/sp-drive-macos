@@ -204,6 +204,8 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     private func statusChanged(_ s: SyncStatus) {
         let was = status
         status = s
+        // the server answers again: the system retries what it was holding for the Finder location
+        if was.phase == .offline, s.phase == .idle || s.phase == .syncing { DriveDomain.shared.signalResolved(.serverUnreachable); DriveDomain.shared.signalChanges() }
         if s.phase == .needsLogin, was.phase != .needsLogin {
             // the session was revoked elsewhere: local work stays in the journal for the next sign-in
             loginError = "La session de cet appareil a été fermée. Reconnectez-vous : vos modifications en attente sont conservées."

@@ -31,10 +31,12 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator, @uncheck
             do {
                 var rows: [DriveItem]
                 switch scope {
-                case .folder(let id):
+                case .folder(let given):
+                    // "root" stands for the root folder until its identifier is known
+                    var id = given == "root" ? (services.store.rootID ?? given) : given
                     if offset == 0 {
                         // the live listing when the server answers; the mirror otherwise (offline browsing)
-                        do { let l = try await services.api.listFolder(id); try services.store.upsert([l.folder] + l.children) }
+                        do { let l = try await services.api.listFolder(id); try services.store.upsert([l.folder] + l.children); id = l.folder.id }
                         catch { let e = DriveError.wrap(error); let known = (try? services.store.item(id)) ?? nil; if !e.isTransient || known == nil { throw e } }
                     }
                     rows = try services.store.children(of: id, limit: FileProviderEnumerator.pageSize, offset: offset)
@@ -60,7 +62,7 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator, @uncheck
             do {
                 let c = try services.store.changes(since: since, limit: FileProviderEnumerator.pageSize)
                 var items = c.items
-                if case .folder(let id) = scope { items = items.filter { $0.parentID == id } }
+                if case .folder(let given) = scope { let id = given == "root" ? (services.store.rootID ?? given) : given; items = items.filter { $0.parentID == id } }
                 if case .trash = scope { items = items.filter(\.trashRoot) }
                 let updated = visible(items)
                 if !updated.isEmpty { obs.value.didUpdate(updated) }

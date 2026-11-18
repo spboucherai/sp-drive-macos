@@ -1,0 +1,65 @@
+<!--
+SP Drive — macOS
+File: docs/FEATURE_MATRIX.md
+Author: Simon-Pierre Boucher
+Contact: contact@spboucher.ai
+-->
+# Matrice de parité — site web ↔ client macOS
+
+État au 2026-11-18. « Vérifié » dit **comment** : T = tests Swift contre le vrai backend local (`Scripts/t.sh`),
+A = auto-vérification de l'app signée (`-spdSelfTest`), V = écran vu dans la tournée (`-spdTour`),
+F = scénario par le Finder (`Scripts/finder-scenario.sh`). **Non vérifié** est écrit en toutes lettres.
+
+## Existant sur le site, repris dans le client
+
+| Fonction | Site | Client macOS | Vérifié |
+|---|---|---|---|
+| Connexion par passkey | oui | oui (feuille système, `webcredentials`) | serveur : T (authentificateur logiciel). **Feuille Touch ID réelle : non vérifiée** (exige la passkey du propriétaire) |
+| Sessions, révocation d'appareil | oui | oui (Paramètres › Compte) | T |
+| Parcourir dossiers et fichiers | oui | oui (liste, grille, fil d'Ariane) | T, A, V |
+| Créer un dossier, renommer, déplacer, dupliquer | oui | oui (hors ligne aussi) | T, A |
+| Favoris | oui | oui | T, A |
+| Téléverser (résumable, blocs + SHA-256) | oui | oui (file persistante, blocs adaptatifs) | T (48 Mo, coupure, panne serveur), A |
+| Téléverser un dossier | oui | oui (glisser-déposer, sélecteur) | **non vérifié de bout en bout** (code exercé fichier par fichier) |
+| Télécharger (`Range`) | oui | oui (reprise, vérification SHA-256, placement atomique) | T, A |
+| Aperçu | oui (pdf.js, images…) | oui (Coup d'œil natif sur copie vérifiée) | copie locale : A. **Panneau Coup d'œil : non vérifié à l'écran** |
+| Vignettes | oui | dans le Finder (File Provider) | **non vérifié** |
+| Corbeille, restauration, purge | oui | oui (purge après confirmation, en ligne seulement) | T, A |
+| Versions : liste, téléchargement, restauration, suppression | oui | oui | T, A, V |
+| Recherche (nom, type, dates, tailles, favoris) | oui | oui, locale, hors ligne (+ extension, dossier, partagés) | T, V |
+| Liens de partage (mot de passe, expiration, plafonds, usage unique, révocation, journal) | oui | oui | T (accès public réel), A, V |
+| Liens de dépôt (portails) | oui | oui (création, pause, renouvellement, révocation, dépôts reçus) | T (dépôt public réel), V |
+| Notification de dépôt | dans le site | notification macOS | serveur : T. **Notification affichée : non vérifiée** |
+| Quota | oui | oui (barre latérale, Stockage, barre de menus) | A, V |
+| Étiquettes | oui | non repris | — |
+| Doublons | oui | non repris | — |
+| Administration (invitations, quotas) | oui | non repris (reste sur le site) | — |
+| Récupération par code, TOTP, ajout de passkey | oui | non repris (reste sur le site) | — |
+
+## Propre au client macOS (développé)
+
+| Fonction | État | Vérifié |
+|---|---|---|
+| Emplacement SP Drive dans le Finder (File Provider répliqué) | construit, signé, enregistré par le système | enregistrement et apparition dans `~/Library/CloudStorage` : oui. **Lecture, écriture et synchronisation par le Finder : non vérifiées** — macOS garde l'emplacement désactivé tant que le propriétaire ne l'active pas dans Réglages Système |
+| Liaison d'appareil par code | oui | T, et utilisée pour connecter l'app de test |
+| Journal d'opérations hors ligne (créer, renommer, déplacer, corbeille, favoris), rejoué à la reconnexion | oui | T (serveur arrêté, « redémarrage », reprise) |
+| Ajout de fichiers hors ligne | oui (copie mise en attente) | T |
+| Synchronisation incrémentale (flux de changements) | oui | T |
+| Détection de conflit, copie de conflit, résolution | oui | T (moteur, file) ; **par le Finder : F, non exécuté** |
+| Disponibilité hors ligne (épingler fichier / dossier) | oui, via la politique de contenu du File Provider | miroir : T. **Téléchargement et conservation réels : non vérifiés** (emplacement désactivé) ; sans emplacement, l'app refuse et l'explique : A |
+| Libérer l'espace local / vider le cache | oui | cache : A. **Éviction : non vérifiée** |
+| File de transferts : pause, reprise, annulation, réessai, priorités, parallélisme adaptatif, limites de débit | oui | T |
+| Barre de menus | oui | **non vérifiée à l'écran** |
+| Notifications (lot terminé, conflit, erreur persistante, espace, dépôt) | oui | **non vérifiées à l'écran** |
+| Verrou Touch ID | oui | **non vérifié** |
+| Ouverture à l'ouverture de session | oui (`SMAppService`) | **non vérifié** |
+| Tableau de bord du stockage | oui | V |
+
+## Absent du serveur, donc absent du client
+
+| Fonction | Raison |
+|---|---|
+| « Partagés avec moi », partage privé entre comptes, permission de modification | le serveur n'a pas de partage entre comptes (hors V1 du backend) : rien n'est affiché plutôt qu'un écran vide |
+| Recherche dans le contenu des documents | pas d'index de contenu côté serveur |
+| Auteur d'une version | compte unique par arbre : non exposé |
+| Chiffrement de bout en bout | non construit ; l'app le dit dans ses réglages |
