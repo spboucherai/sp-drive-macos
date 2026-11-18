@@ -16,12 +16,12 @@ public struct SyncStatus: Sendable, Equatable {
 }
 
 public actor SyncEngine {
-    public let api: APIClient
-    public let store: MetadataStore
-    public let journal: OperationJournal
-    public let transfers: TransferQueue
-    public let detector: ChangeDetector
-    public let conflicts: ConflictResolver
+    public nonisolated let api: APIClient
+    public nonisolated let store: MetadataStore
+    public nonisolated let journal: OperationJournal
+    public nonisolated let transfers: TransferQueue
+    public nonisolated let detector: ChangeDetector
+    public nonisolated let conflicts: ConflictResolver
     private let network: NetworkMonitor
     private var loop: Task<Void, Never>?
     private var netWatch: Task<Void, Never>?

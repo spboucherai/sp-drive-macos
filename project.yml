@@ -1,0 +1,117 @@
+# Author: Simon-Pierre Boucher — contact@spboucher.ai
+# File: project.yml
+# Description: XcodeGen definition of SP Drive (native macOS app + File Provider extension). The engine room is the Swift package at the root (SPDriveCore, SPDriveSync).
+name: SPDrive
+options:
+  bundleIdPrefix: ai.spboucher
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: fr
+packages:
+  SPDriveCore:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: 3YM54G49SN
+    ENABLE_HARDENED_RUNTIME: YES
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+    OTHER_CODE_SIGN_FLAGS: "--timestamp"
+    GENERATE_INFOPLIST_FILE: NO
+  configs:
+    # Debug = the development variant "SP Drive Dev": its own identifiers, container, keychain item and Finder location,
+    # allowed to talk to a local test backend. Signed like the release (Developer ID + profiles) so that the keychain
+    # group, the app group and the File Provider run exactly as they will once distributed.
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG SPD_DEV
+    Release:
+      ONLY_ACTIVE_ARCH: NO
+      SWIFT_COMPILATION_MODE: wholemodule
+targets:
+  SPDrive:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: Features
+      - path: Components
+      - path: FileProviderExtension/FileProviderManager.swift
+      - path: Resources
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+          - "icon/**"
+    dependencies:
+      - package: SPDriveCore
+        product: SPDriveCore
+      - package: SPDriveCore
+        product: SPDriveSync
+      - target: SPDriveFileProvider
+        embed: true
+        codeSign: false
+    settings:
+      base:
+        PRODUCT_MODULE_NAME: SPDrive
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: YES
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: ai.spboucher.spdrive.dev
+          PRODUCT_NAME: SP Drive Dev
+          INFOPLIST_FILE: Resources/Info-Dev.plist
+          CODE_SIGN_ENTITLEMENTS: Resources/SPDrive-Dev.entitlements
+          PROVISIONING_PROFILE_SPECIFIER: "SP Drive Dev Developer ID"
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: ai.spboucher.spdrive
+          PRODUCT_NAME: SP Drive
+          INFOPLIST_FILE: Resources/Info.plist
+          CODE_SIGN_ENTITLEMENTS: Resources/SPDrive.entitlements
+          PROVISIONING_PROFILE_SPECIFIER: "SP Drive Developer ID"
+  SPDriveFileProvider:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: FileProviderExtension
+        excludes:
+          - "FileProviderManager.swift"
+          - "Resources/**"
+      - path: App/AppEnvironment.swift
+    dependencies:
+      - package: SPDriveCore
+        product: SPDriveCore
+      - package: SPDriveCore
+        product: SPDriveSync
+    settings:
+      base:
+        PRODUCT_NAME: SPDriveFileProvider
+        PRODUCT_MODULE_NAME: SPDriveFileProvider
+        SKIP_INSTALL: YES
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: ai.spboucher.spdrive.dev.fileprovider
+          INFOPLIST_FILE: FileProviderExtension/Resources/Info-Dev.plist
+          CODE_SIGN_ENTITLEMENTS: FileProviderExtension/Resources/FileProvider-Dev.entitlements
+          PROVISIONING_PROFILE_SPECIFIER: "SP Drive Dev File Provider Developer ID"
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: ai.spboucher.spdrive.fileprovider
+          INFOPLIST_FILE: FileProviderExtension/Resources/Info.plist
+          CODE_SIGN_ENTITLEMENTS: FileProviderExtension/Resources/FileProvider.entitlements
+          PROVISIONING_PROFILE_SPECIFIER: "SP Drive File Provider Developer ID"
+schemes:
+  SPDrive:
+    build:
+      targets:
+        SPDrive: all
+    run:
+      config: Debug
+    archive:
+      config: Release

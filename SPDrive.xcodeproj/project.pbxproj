@@ -1,0 +1,715 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		012FCB56CC1DFED6ACBEBD16 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8F7F0ACD2ED638A2CF489C /* AppModel.swift */; };
+		05755B2ABDC1926F49B57C06 /* DriveServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2F7C4C6F1FD88C7AD1D7BF /* DriveServices.swift */; };
+		074ABC8F5A9FA5A7F03480BA /* PortalViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53BE020832C4BE32F40B508 /* PortalViews.swift */; };
+		0F194D224E06E41C5A49B392 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF96863E3C014211A2F4BA39 /* MainView.swift */; };
+		12BBF1CC5791DF40B8D3086E /* FileProviderExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCE446C955BB0358663CEB9 /* FileProviderExtension.swift */; };
+		12E976CA1381B4B88D9583B6 /* DevTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E1BDB13BF79AEA1C1A1962 /* DevTour.swift */; };
+		25676417FA1ED73E9F88BEB8 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C5728C35C70990E65838BC /* LoginView.swift */; };
+		33C99D1B6955C0EF22A6E21A /* StorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713570F5F3058295FFBDA868 /* StorageView.swift */; };
+		39951864B0FF97371510EFB5 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4753681F476E733ADE7677 /* RootView.swift */; };
+		3DDFBA97077509A146F2EDAA /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CDB205406E1027B83EA103F /* AppEnvironment.swift */; };
+		3E481C1AAA9E4D0F2C6A118D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65ED2FDF6FE66CC847FDDFB /* Settings.swift */; };
+		457D1DD77AD14AA9B29D87B3 /* FileProviderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B6DA1336ED08C5BF77CFDF /* FileProviderItem.swift */; };
+		49EA265AE426B26AE5AA67E7 /* SPDriveCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8F0174C8F3E9644950282AE6 /* SPDriveCore */; };
+		526A8676DAC15BD39B974698 /* SPDriveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 055BD95121075DF731CD1A14 /* SPDriveApp.swift */; };
+		576E9CA2BF70AA1F0DC0B0B9 /* Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5D0E2C758EE7877041526A /* Sheets.swift */; };
+		669F15736E1626C0B4E9125C /* FileProviderEnumerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC064B36F80DED70CD6B3D1D /* FileProviderEnumerator.swift */; };
+		847EF3DE354B81C4D02E0220 /* SPDriveSync in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC8196383D669523B0A2004 /* SPDriveSync */; };
+		8F8DBB298082DAF43077459D /* SPDriveFileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 41BBE412E34887B7EFDFC1F0 /* SPDriveFileProvider.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		91B0D7698CC56BA1ECA6542C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9A2E20E1114DA9F2EC81A2 /* AppDelegate.swift */; };
+		957127AF6E5E4B513CC263DC /* Navigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F161453070CB9F366CB710 /* Navigator.swift */; };
+		9A7B5619407DFA0B7AAC2289 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CDB205406E1027B83EA103F /* AppEnvironment.swift */; };
+		A54B6F55F19D9E4BF57AF6AF /* PasskeyPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A25EFA4C98690C8C48C80B3 /* PasskeyPresenter.swift */; };
+		B113A88475DBFE91B26064C9 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D8182A6D0C4E974F5886305 /* ShareSheet.swift */; };
+		B3EE07CF08197D57E797AD8A /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9492422A95AB2C38CA39D9B7 /* Formatting.swift */; };
+		B7B2C9DC03D9E2C247C987C1 /* DevSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C10D1C491F03DF3E794C1B2 /* DevSelfTest.swift */; };
+		BE7A036AD5CBFABBB07C43E6 /* ItemActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FA36BF027AC2353CD3F50D /* ItemActions.swift */; };
+		C80B5D31E9162E06667F6A10 /* BrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E7095C78F0C1BCB8543722 /* BrowserView.swift */; };
+		CB25167687F3BA7DAFF85568 /* TransfersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF484E4959F9D61671F1CEDB /* TransfersView.swift */; };
+		CC4CE1C494B3D5BD96A7BB37 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E80C6C52AF8BBB387F12D7 /* SettingsView.swift */; };
+		D5C327F26D34513C20090744 /* SPDriveCore in Frameworks */ = {isa = PBXBuildFile; productRef = B842C35D4CA48731C720BB11 /* SPDriveCore */; };
+		E237E986704E0A6CFFE0EDE1 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3010D172BBD07892F0BB84 /* MenuBarView.swift */; };
+		E6017A1157B95618BAA00966 /* FileProviderManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C767189B16634F6F9809B0 /* FileProviderManager.swift */; };
+		E7A9DB526B5D98F1D06DBC3C /* SPDriveSync in Frameworks */ = {isa = PBXBuildFile; productRef = 98EE2727C1CFA0149D19A958 /* SPDriveSync */; };
+		EC8DCCAE6EEC5E0A63B6A1FC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A63431E62848A4AA12816E34 /* Assets.xcassets */; };
+		F7F8DA84F7ACFB24AB3AC5C2 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7A840E83FDD442656FD4AF /* Notifier.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A7D3A26B307CBA6D8F176910 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FB17BB0CE677B5C5D1394B24 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8E10D3C38AD931B05DD7CA98;
+			remoteInfo = SPDriveFileProvider;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		ACC5A85009E587EF3F4C687F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8F8DBB298082DAF43077459D /* SPDriveFileProvider.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		055BD95121075DF731CD1A14 /* SPDriveApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SPDriveApp.swift; sourceTree = "<group>"; };
+		2CDB205406E1027B83EA103F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		2D8182A6D0C4E974F5886305 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		349909746E08521FB93E9A99 /* SPDrive */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SPDrive; path = .; sourceTree = SOURCE_ROOT; };
+		41BBE412E34887B7EFDFC1F0 /* SPDriveFileProvider.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SPDriveFileProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		47C5728C35C70990E65838BC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		62B6DA1336ED08C5BF77CFDF /* FileProviderItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderItem.swift; sourceTree = "<group>"; };
+		6A25EFA4C98690C8C48C80B3 /* PasskeyPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyPresenter.swift; sourceTree = "<group>"; };
+		713570F5F3058295FFBDA868 /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
+		7C10D1C491F03DF3E794C1B2 /* DevSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevSelfTest.swift; sourceTree = "<group>"; };
+		80C767189B16634F6F9809B0 /* FileProviderManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderManager.swift; sourceTree = "<group>"; };
+		81E1BDB13BF79AEA1C1A1962 /* DevTour.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevTour.swift; sourceTree = "<group>"; };
+		89E80C6C52AF8BBB387F12D7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8C8F7F0ACD2ED638A2CF489C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		905412063BA7D6E0118977B6 /* SPDrive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SPDrive.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		91FA36BF027AC2353CD3F50D /* ItemActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemActions.swift; sourceTree = "<group>"; };
+		9492422A95AB2C38CA39D9B7 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
+		9A7A840E83FDD442656FD4AF /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
+		9B5D0E2C758EE7877041526A /* Sheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sheets.swift; sourceTree = "<group>"; };
+		9E3010D172BBD07892F0BB84 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		A63431E62848A4AA12816E34 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AF96863E3C014211A2F4BA39 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		B65ED2FDF6FE66CC847FDDFB /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+		BF484E4959F9D61671F1CEDB /* TransfersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersView.swift; sourceTree = "<group>"; };
+		CC2F7C4C6F1FD88C7AD1D7BF /* DriveServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveServices.swift; sourceTree = "<group>"; };
+		CD4753681F476E733ADE7677 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		DC064B36F80DED70CD6B3D1D /* FileProviderEnumerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderEnumerator.swift; sourceTree = "<group>"; };
+		DC9A2E20E1114DA9F2EC81A2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		E3E7095C78F0C1BCB8543722 /* BrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserView.swift; sourceTree = "<group>"; };
+		E53BE020832C4BE32F40B508 /* PortalViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalViews.swift; sourceTree = "<group>"; };
+		E8F161453070CB9F366CB710 /* Navigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigator.swift; sourceTree = "<group>"; };
+		ECCE446C955BB0358663CEB9 /* FileProviderExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderExtension.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		11C9EC8E4B103CD59595ECEB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				49EA265AE426B26AE5AA67E7 /* SPDriveCore in Frameworks */,
+				847EF3DE354B81C4D02E0220 /* SPDriveSync in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D30117B994DB240561C5058B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D5C327F26D34513C20090744 /* SPDriveCore in Frameworks */,
+				E7A9DB526B5D98F1D06DBC3C /* SPDriveSync in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03C53E7C022DD681D25842F0 /* Account */ = {
+			isa = PBXGroup;
+			children = (
+				47C5728C35C70990E65838BC /* LoginView.swift */,
+			);
+			path = Account;
+			sourceTree = "<group>";
+		};
+		25BA299775028B488642BA31 /* MyDrive */ = {
+			isa = PBXGroup;
+			children = (
+				E3E7095C78F0C1BCB8543722 /* BrowserView.swift */,
+				91FA36BF027AC2353CD3F50D /* ItemActions.swift */,
+				9B5D0E2C758EE7877041526A /* Sheets.swift */,
+			);
+			path = MyDrive;
+			sourceTree = "<group>";
+		};
+		2E7B567B15E6EFB68BA2EBFC /* Transfers */ = {
+			isa = PBXGroup;
+			children = (
+				BF484E4959F9D61671F1CEDB /* TransfersView.swift */,
+			);
+			path = Transfers;
+			sourceTree = "<group>";
+		};
+		35E90C4EDF29029B238BC7BC /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				89E80C6C52AF8BBB387F12D7 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		5037D228D772034E342042EC /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A63431E62848A4AA12816E34 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		568F2D3B679B6FC77BF2479A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				905412063BA7D6E0118977B6 /* SPDrive.app */,
+				41BBE412E34887B7EFDFC1F0 /* SPDriveFileProvider.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		70B1D9C1A952D3A0B90C083A /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				AF96863E3C014211A2F4BA39 /* MainView.swift */,
+				9E3010D172BBD07892F0BB84 /* MenuBarView.swift */,
+				CD4753681F476E733ADE7677 /* RootView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		7C1C98EC82751B15DC2B8CE8 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E53BE020832C4BE32F40B508 /* PortalViews.swift */,
+				2D8182A6D0C4E974F5886305 /* ShareSheet.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		809D6A31BDD4DA5A9CA913F8 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				349909746E08521FB93E9A99 /* SPDrive */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		8DA8C47A955338E07C342091 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				03C53E7C022DD681D25842F0 /* Account */,
+				70B1D9C1A952D3A0B90C083A /* Home */,
+				25BA299775028B488642BA31 /* MyDrive */,
+				CAE7100A1224EC6FD01BFCC3 /* Offline */,
+				35E90C4EDF29029B238BC7BC /* Settings */,
+				7C1C98EC82751B15DC2B8CE8 /* Shared */,
+				2E7B567B15E6EFB68BA2EBFC /* Transfers */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		9F2FD6390266CD7DE33BF411 = {
+			isa = PBXGroup;
+			children = (
+				E859CA65B2B2AE9918E27CDB /* App */,
+				F22049C2B949C2D2C893887D /* Components */,
+				8DA8C47A955338E07C342091 /* Features */,
+				D9B23480AAFBE1D2B7A8831D /* FileProviderExtension */,
+				809D6A31BDD4DA5A9CA913F8 /* Packages */,
+				5037D228D772034E342042EC /* Resources */,
+				568F2D3B679B6FC77BF2479A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CAE7100A1224EC6FD01BFCC3 /* Offline */ = {
+			isa = PBXGroup;
+			children = (
+				713570F5F3058295FFBDA868 /* StorageView.swift */,
+			);
+			path = Offline;
+			sourceTree = "<group>";
+		};
+		D9B23480AAFBE1D2B7A8831D /* FileProviderExtension */ = {
+			isa = PBXGroup;
+			children = (
+				CC2F7C4C6F1FD88C7AD1D7BF /* DriveServices.swift */,
+				DC064B36F80DED70CD6B3D1D /* FileProviderEnumerator.swift */,
+				ECCE446C955BB0358663CEB9 /* FileProviderExtension.swift */,
+				62B6DA1336ED08C5BF77CFDF /* FileProviderItem.swift */,
+				80C767189B16634F6F9809B0 /* FileProviderManager.swift */,
+			);
+			path = FileProviderExtension;
+			sourceTree = "<group>";
+		};
+		E859CA65B2B2AE9918E27CDB /* App */ = {
+			isa = PBXGroup;
+			children = (
+				DC9A2E20E1114DA9F2EC81A2 /* AppDelegate.swift */,
+				2CDB205406E1027B83EA103F /* AppEnvironment.swift */,
+				8C8F7F0ACD2ED638A2CF489C /* AppModel.swift */,
+				7C10D1C491F03DF3E794C1B2 /* DevSelfTest.swift */,
+				81E1BDB13BF79AEA1C1A1962 /* DevTour.swift */,
+				E8F161453070CB9F366CB710 /* Navigator.swift */,
+				9A7A840E83FDD442656FD4AF /* Notifier.swift */,
+				6A25EFA4C98690C8C48C80B3 /* PasskeyPresenter.swift */,
+				B65ED2FDF6FE66CC847FDDFB /* Settings.swift */,
+				055BD95121075DF731CD1A14 /* SPDriveApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		F22049C2B949C2D2C893887D /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				9492422A95AB2C38CA39D9B7 /* Formatting.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4F821C737E3FF6C8745D2D59 /* SPDrive */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 66EF5890114D01A268206579 /* Build configuration list for PBXNativeTarget "SPDrive" */;
+			buildPhases = (
+				2A721399F4A45FD8CE3E88E2 /* Sources */,
+				35B16ED4A2924669781955B7 /* Resources */,
+				11C9EC8E4B103CD59595ECEB /* Frameworks */,
+				ACC5A85009E587EF3F4C687F /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				21532DEDC3C240BF93D93DB4 /* PBXTargetDependency */,
+			);
+			name = SPDrive;
+			packageProductDependencies = (
+				8F0174C8F3E9644950282AE6 /* SPDriveCore */,
+				4FC8196383D669523B0A2004 /* SPDriveSync */,
+			);
+			productName = SPDrive;
+			productReference = 905412063BA7D6E0118977B6 /* SPDrive.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8E10D3C38AD931B05DD7CA98 /* SPDriveFileProvider */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FC06BDC98C711442A00AC1BA /* Build configuration list for PBXNativeTarget "SPDriveFileProvider" */;
+			buildPhases = (
+				5BD2C409F987AB2D65E950FF /* Sources */,
+				D30117B994DB240561C5058B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SPDriveFileProvider;
+			packageProductDependencies = (
+				B842C35D4CA48731C720BB11 /* SPDriveCore */,
+				98EE2727C1CFA0149D19A958 /* SPDriveSync */,
+			);
+			productName = SPDriveFileProvider;
+			productReference = 41BBE412E34887B7EFDFC1F0 /* SPDriveFileProvider.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FB17BB0CE677B5C5D1394B24 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4F821C737E3FF6C8745D2D59 = {
+						DevelopmentTeam = 3YM54G49SN;
+						ProvisioningStyle = Manual;
+					};
+					8E10D3C38AD931B05DD7CA98 = {
+						DevelopmentTeam = 3YM54G49SN;
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = B4CCC94743C26039C140E232 /* Build configuration list for PBXProject "SPDrive" */;
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				fr,
+			);
+			mainGroup = 9F2FD6390266CD7DE33BF411;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9702EA4FFF4F8056F9F6493D /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 568F2D3B679B6FC77BF2479A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4F821C737E3FF6C8745D2D59 /* SPDrive */,
+				8E10D3C38AD931B05DD7CA98 /* SPDriveFileProvider */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		35B16ED4A2924669781955B7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EC8DCCAE6EEC5E0A63B6A1FC /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2A721399F4A45FD8CE3E88E2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				91B0D7698CC56BA1ECA6542C /* AppDelegate.swift in Sources */,
+				9A7B5619407DFA0B7AAC2289 /* AppEnvironment.swift in Sources */,
+				012FCB56CC1DFED6ACBEBD16 /* AppModel.swift in Sources */,
+				C80B5D31E9162E06667F6A10 /* BrowserView.swift in Sources */,
+				B7B2C9DC03D9E2C247C987C1 /* DevSelfTest.swift in Sources */,
+				12E976CA1381B4B88D9583B6 /* DevTour.swift in Sources */,
+				E6017A1157B95618BAA00966 /* FileProviderManager.swift in Sources */,
+				B3EE07CF08197D57E797AD8A /* Formatting.swift in Sources */,
+				BE7A036AD5CBFABBB07C43E6 /* ItemActions.swift in Sources */,
+				25676417FA1ED73E9F88BEB8 /* LoginView.swift in Sources */,
+				0F194D224E06E41C5A49B392 /* MainView.swift in Sources */,
+				E237E986704E0A6CFFE0EDE1 /* MenuBarView.swift in Sources */,
+				957127AF6E5E4B513CC263DC /* Navigator.swift in Sources */,
+				F7F8DA84F7ACFB24AB3AC5C2 /* Notifier.swift in Sources */,
+				A54B6F55F19D9E4BF57AF6AF /* PasskeyPresenter.swift in Sources */,
+				074ABC8F5A9FA5A7F03480BA /* PortalViews.swift in Sources */,
+				39951864B0FF97371510EFB5 /* RootView.swift in Sources */,
+				526A8676DAC15BD39B974698 /* SPDriveApp.swift in Sources */,
+				3E481C1AAA9E4D0F2C6A118D /* Settings.swift in Sources */,
+				CC4CE1C494B3D5BD96A7BB37 /* SettingsView.swift in Sources */,
+				B113A88475DBFE91B26064C9 /* ShareSheet.swift in Sources */,
+				576E9CA2BF70AA1F0DC0B0B9 /* Sheets.swift in Sources */,
+				33C99D1B6955C0EF22A6E21A /* StorageView.swift in Sources */,
+				CB25167687F3BA7DAFF85568 /* TransfersView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5BD2C409F987AB2D65E950FF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3DDFBA97077509A146F2EDAA /* AppEnvironment.swift in Sources */,
+				05755B2ABDC1926F49B57C06 /* DriveServices.swift in Sources */,
+				669F15736E1626C0B4E9125C /* FileProviderEnumerator.swift in Sources */,
+				12BBF1CC5791DF40B8D3086E /* FileProviderExtension.swift in Sources */,
+				457D1DD77AD14AA9B29D87B3 /* FileProviderItem.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		21532DEDC3C240BF93D93DB4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8E10D3C38AD931B05DD7CA98 /* SPDriveFileProvider */;
+			targetProxy = A7D3A26B307CBA6D8F176910 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		43D6E4672A49A9827DE7CE33 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Resources/SPDrive-Dev.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "Resources/Info-Dev.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.spboucher.spdrive.dev;
+				PRODUCT_MODULE_NAME = SPDrive;
+				PRODUCT_NAME = "SP Drive Dev";
+				PROVISIONING_PROFILE_SPECIFIER = "SP Drive Dev Developer ID";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		45EB6ECD1505735D38E2A77B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = FileProviderExtension/Resources/FileProvider.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = FileProviderExtension/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.spboucher.spdrive.fileprovider;
+				PRODUCT_MODULE_NAME = SPDriveFileProvider;
+				PRODUCT_NAME = SPDriveFileProvider;
+				PROVISIONING_PROFILE_SPECIFIER = "SP Drive File Provider Developer ID";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		80427BEBD1E4F6C09A346534 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Resources/SPDrive.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.spboucher.spdrive;
+				PRODUCT_MODULE_NAME = SPDrive;
+				PRODUCT_NAME = "SP Drive";
+				PROVISIONING_PROFILE_SPECIFIER = "SP Drive Developer ID";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		AA926680679D76F430F3066F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "FileProviderExtension/Resources/FileProvider-Dev.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "FileProviderExtension/Resources/Info-Dev.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.spboucher.spdrive.dev.fileprovider;
+				PRODUCT_MODULE_NAME = SPDriveFileProvider;
+				PRODUCT_NAME = SPDriveFileProvider;
+				PROVISIONING_PROFILE_SPECIFIER = "SP Drive Dev File Provider Developer ID";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		C2C39411047BA87347416187 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3YM54G49SN;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CODE_SIGN_FLAGS = "--timestamp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SPD_DEV";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		F21561E9F60049D6BF022D58 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3YM54G49SN;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_CODE_SIGN_FLAGS = "--timestamp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		66EF5890114D01A268206579 /* Build configuration list for PBXNativeTarget "SPDrive" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				43D6E4672A49A9827DE7CE33 /* Debug */,
+				80427BEBD1E4F6C09A346534 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B4CCC94743C26039C140E232 /* Build configuration list for PBXProject "SPDrive" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C2C39411047BA87347416187 /* Debug */,
+				F21561E9F60049D6BF022D58 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FC06BDC98C711442A00AC1BA /* Build configuration list for PBXNativeTarget "SPDriveFileProvider" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA926680679D76F430F3066F /* Debug */,
+				45EB6ECD1505735D38E2A77B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9702EA4FFF4F8056F9F6493D /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4FC8196383D669523B0A2004 /* SPDriveSync */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SPDriveSync;
+		};
+		8F0174C8F3E9644950282AE6 /* SPDriveCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SPDriveCore;
+		};
+		98EE2727C1CFA0149D19A958 /* SPDriveSync */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SPDriveSync;
+		};
+		B842C35D4CA48731C720BB11 /* SPDriveCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SPDriveCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = FB17BB0CE677B5C5D1394B24 /* Project object */;
+}

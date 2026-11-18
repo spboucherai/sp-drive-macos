@@ -139,6 +139,8 @@ public final class MetadataStore: Sendable {
                   trashRoot: r["trash_root"]?.bool ?? false, rev: r["rev"]?.int ?? 0, scan: r["scan"]?.text ?? "clean", hasThumbnail: r["thumb"]?.bool ?? false, previewKind: r["preview_kind"]?.text ?? "none")
     }
     private func items(_ sql: String, _ v: [SQLValue] = []) throws -> [DriveItem] { try db.query(sql, v).map(MetadataStore.item) }
+    /// Every item of the mirror (trashed ones included), in a stable order, by pages.
+    public func allItems(limit: Int, offset: Int) throws -> [DriveItem] { try items("SELECT * FROM items ORDER BY id LIMIT ? OFFSET ?", [.int(Int64(limit)), .int(Int64(offset))]) }
     public func item(_ id: String) throws -> DriveItem? { try items("SELECT * FROM items WHERE id = ?", [.text(id)]).first }
     public func root() throws -> DriveItem? { try rootID.flatMap { try item($0) } }
     /// Live children of a folder: folders first, then by name.
@@ -173,7 +175,10 @@ public final class MetadataStore: Sendable {
             SELECT i.* FROM items i JOIN sub ON i.parent_id = sub.id WHERE i.kind = 'file' AND i.trashed_at IS NULL
             """, [.text(folder)])
     }
-    public struct Counts: Sendable, Equatable { public var files: Int; public var folders: Int; public var bytes: Int64; public var trashed: Int }
+    public struct Counts: Sendable, Equatable {
+        public var files: Int; public var folders: Int; public var bytes: Int64; public var trashed: Int
+        public init(files: Int, folders: Int, bytes: Int64, trashed: Int) { self.files = files; self.folders = folders; self.bytes = bytes; self.trashed = trashed }
+    }
     public func counts() throws -> Counts {
         let r = try db.query("""
             SELECT (SELECT COUNT(*) FROM items WHERE kind='file' AND trashed_at IS NULL) AS files, (SELECT COUNT(*) FROM items WHERE kind='folder' AND trashed_at IS NULL AND parent_id IS NOT NULL) AS folders,
@@ -234,7 +239,10 @@ public final class MetadataStore: Sendable {
     }
     public func materializedIDs() throws -> Set<String> { Set(try db.query("SELECT id FROM local_state WHERE materialized = 1").compactMap { $0["id"]?.text }) }
     public func isMaterialized(_ id: String) throws -> Bool { try !db.query("SELECT 1 FROM local_state WHERE id = ? AND materialized = 1", [.text(id)]).isEmpty }
-    public struct LocalUsage: Sendable, Equatable { public var files: Int; public var bytes: Int64; public var pinnedBytes: Int64 }
+    public struct LocalUsage: Sendable, Equatable {
+        public var files: Int; public var bytes: Int64; public var pinnedBytes: Int64
+        public init(files: Int, bytes: Int64, pinnedBytes: Int64) { self.files = files; self.bytes = bytes; self.pinnedBytes = pinnedBytes }
+    }
     public func localUsage() throws -> LocalUsage {
         let rows = try db.query("SELECT l.id AS id, i.size AS size FROM local_state l JOIN items i ON i.id = l.id WHERE l.materialized = 1 AND i.kind = 'file'")
         var u = LocalUsage(files: 0, bytes: 0, pinnedBytes: 0)
