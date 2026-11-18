@@ -158,6 +158,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         let items = nav.section == .trash ? trash() : children(of: nav.folderID ?? rootID ?? "")
         let target = d.string(forKey: "spdSelect").flatMap { n in items.first { $0.name == n } } ?? (d.bool(forKey: "spdSelectFirst") ? items.first : nil)
         if let target { nav.selection = [target.id] }
+        if d.bool(forKey: "spdSignOut") { Task { await signOut(); try? "done".write(to: AppEnvironment.containerURL.appendingPathComponent("signedout.txt"), atomically: true, encoding: .utf8) }; return } // leaves the Mac clean after a test campaign
         if d.bool(forKey: "spdInspector") { nav.showInspector = true }
         if let t = target, d.object(forKey: "spdPin") != nil { let on = d.bool(forKey: "spdPin"); Task { await refreshFinderState(); await setPinned([t], on) } }
         if let t = target, d.bool(forKey: "spdEvict") { Task { await refreshFinderState(); let r = await freeUpSpace([t.id]); AppEnvironment.log.info("evict: freed \(r.freed) kept \(r.kept)") } }
