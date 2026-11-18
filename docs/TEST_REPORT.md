@@ -91,12 +91,13 @@ l'environnement SwiftUI, absent à ces endroits sur macOS 27 ; le modèle leur e
    identifiants). L'emplacement « SP Drive » de production n'existe qu'après connexion du propriétaire, qui devra aussi
    l'activer dans Réglages Système. Vignettes dans le Finder : non observées. Ouverture et enregistrement depuis une
    application graphique (Pages, Aperçu…) : non observés — les écritures ont été faites par le système de fichiers.
-2. **Passkey réelle (Touch ID)** dans l'application distribuée, contre la production. Premier essai du propriétaire à
+2. Passkey réelle (Touch ID) dans l'application distribuée, contre la production : **fonctionne**, constaté par le propriétaire et non par un test automatisé. Premier essai du propriétaire à
    15:50 : erreur 1004. Cause établie : le robot d'Apple avait demandé le fichier d'association à 15:08, avant la mise en
    production de la route ; le site avait répondu sa page HTML et le CDN d'Apple a gardé « Bad JSON content » une heure
    (visible avec `nscurl -i https://app-site-association.cdn-apple.com/a/v1/drive.spboucher.ai`, pas avec `curl`, dont
    l'en-tête `Accept-Encoding` désigne une autre entrée du cache). À 16:08 le CDN renvoie le bon fichier et `swcd` ne
-   journalise plus de refus. **Le nouvel essai du propriétaire n'est pas encore confirmé.**
+   journalise plus de refus. Nouvel essai du propriétaire vers 16:10 : **connexion réussie** (confirmée par lui ; l'emplacement
+   « SP Drive » de production est alors créé, en attente de son activation dans Réglages Système).
 3. **Version distribuée contre la production** : elle n'a pas été lancée connectée (aucun compte de test en production).
 4. **Redémarrage réel du Mac** ; **reprise après veille** (le code réagit au réveil, non observé).
 5. Notifications, barre de menus, verrou Touch ID, ouverture de session, Coup d'œil : non observés à l'écran.
