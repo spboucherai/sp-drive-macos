@@ -115,6 +115,7 @@ Aucun WebView, aucun moteur web, aucune dépendance tierce.
 |---|---|---|---|
 | **SP Drive** | Web + API — `drive.spboucher.ai` | [git.spboucher.ai/sp-drive](https://git.spboucher.ai/sp-drive) | Serveur (Fastify + PostgreSQL), site, stockage chiffré au repos, partage, portails de dépôt |
 | **SP Drive pour macOS** (ce dépôt) | macOS 14+ natif | [git.spboucher.ai/sp-drive-macos](https://git.spboucher.ai/sp-drive-macos) | Application, extension Finder, paquets `SPDriveCore` et `SPDriveSync` |
+| **SP Drive pour iOS / iPadOS** | iOS · iPadOS natif | [git.spboucher.ai/sp-drive-ios](https://git.spboucher.ai/sp-drive-ios) | Client natif iPhone et iPad (File Provider, hors ligne) |
 
 ---
 
