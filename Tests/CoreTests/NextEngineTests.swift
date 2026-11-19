@@ -331,6 +331,7 @@ final class CrashResumeTests: LiveCase {
         guard FileManager.default.isExecutableFile(atPath: u.path) else { XCTFail("spdrive-cli not built next to the tests: \(u.path)"); throw DriveError.local("no cli") }
         return u
     }
+    // `Process.waitUntilExit()` is not used: called from a Swift concurrency thread it can wait forever (seen once in this suite).
     private func spawn(_ args: [String]) throws -> Process {
         let b = try Backend.require()
         let p = Process(); p.executableURL = try cli(); p.arguments = args
@@ -350,7 +351,7 @@ final class CrashResumeTests: LiveCase {
             return ((try? await api.uploadStatus(id).received) ?? 0) > 3 * 1024 * 1024
         }
         let session = try XCTUnwrap(try s.db.query("SELECT upload_id FROM upload_sessions").first?["upload_id"]?.text)
-        XCTAssertEqual(kill(p.processIdentifier, SIGKILL), 0); p.waitUntilExit()
+        XCTAssertEqual(kill(p.processIdentifier, SIGKILL), 0); try await waitUntil(timeout: 10, "the killed process is gone") { !p.isRunning }
         XCTAssertEqual(p.terminationReason, .uncaughtSignal); XCTAssertEqual(p.terminationStatus, SIGKILL) // really killed, no clean-up ran
         let row = try XCTUnwrap(try s.db.query("SELECT id, state FROM transfers").first)
         XCTAssertEqual(row["state"]?.text, "running", "the crash leaves the row as it was")
@@ -384,7 +385,7 @@ final class CrashResumeTests: LiveCase {
             return ((try? FileManager.default.attributesOfItem(atPath: f.path)[.size]) as? NSNumber)?.int64Value ?? 0
         }
         try await waitUntil(timeout: 30, "the other process is downloading") { partialSize() > 3 * 1024 * 1024 }
-        XCTAssertEqual(kill(p.processIdentifier, SIGKILL), 0); p.waitUntilExit()
+        XCTAssertEqual(kill(p.processIdentifier, SIGKILL), 0); try await waitUntil(timeout: 10, "the killed process is gone") { !p.isRunning }
         XCTAssertEqual(p.terminationReason, .uncaughtSignal)
         let had = partialSize()
         XCTAssertGreaterThan(had, 3 * 1024 * 1024); XCTAssertLessThan(had, Int64(12 * 1024 * 1024))

@@ -70,6 +70,27 @@ final class DriveDomain: Sendable {
             if let e = coordination ?? inner { throw e }
         }.value
     }
+    /// Copies a file of the Finder location into the app's container (coordinated read; an APFS clone when possible) and
+    /// checks it against the expected SHA-256 — a copy that does not match is removed and an error thrown.
+    func copyOut(_ url: URL, to destination: URL, sha256: String) async throws {
+        try await Task.detached(priority: .userInitiated) {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            var coordination: NSError?, inner: Error?
+            NSFileCoordinator().coordinate(readingItemAt: url, options: [.withoutChanges], error: &coordination) { actual in
+                do {
+                    try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? FileManager.default.removeItem(at: destination)
+                    try FileManager.default.copyItem(at: actual, to: destination)
+                } catch { inner = error }
+            }
+            if let e = coordination ?? inner { throw e }
+            if !sha256.isEmpty, (try Hashing.sha256Hex(of: destination)).sha256 != sha256.lowercased() {
+                try? FileManager.default.removeItem(at: destination)
+                throw DriveError.integrity("la copie locale ne correspond pas à la version du serveur")
+            }
+        }.value
+    }
     /// Removes the local copy of an item and keeps the item itself. The system refuses when the copy is pinned or holds changes not yet sent.
     func evict(_ id: String) async throws {
         guard let manager else { return }

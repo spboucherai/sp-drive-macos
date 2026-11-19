@@ -13,7 +13,7 @@ struct SettingsView: View {
             NotificationSettings().tabItem { Label("Notifications", systemImage: "bell") }
             AccountSettings().tabItem { Label("Compte", systemImage: "person.crop.circle") }
         }
-        .frame(width: 560, height: 460)
+        .frame(width: 580, height: 520)
     }
 }
 
@@ -43,6 +43,21 @@ private struct GeneralSettings: View {
                 Toggle("Afficher l’icône dans la barre de menus", isOn: $s.showMenuBarIcon)
                 Text("Avec l’icône de la barre de menus, SP Drive continue de synchroniser quand sa fenêtre est fermée.").font(.caption).foregroundStyle(.secondary)
             }
+            Section("Bureau et recherche") {
+                Toggle("Zone de dépôt flottante sur le bureau", isOn: Binding(get: { s.dropZone }, set: { s.dropZone = $0; DropZoneController.shared.update(model: model) }))
+                if s.dropZone {
+                    Picker("Destination", selection: Binding(get: { s.dropZoneFolderID ?? "" }, set: { s.dropZoneFolderID = $0.isEmpty ? nil : $0 })) {
+                        Text("Mon Drive").tag("")
+                        ForEach((model.rootID.map { model.children(of: $0) } ?? []).filter(\.isFolder)) { f in Text(f.name).tag(f.id) }
+                    }
+                }
+                Text("Une petite tuile reste au-dessus des fenêtres : glissez-y des fichiers depuis n’importe quelle application. Elle se déplace à la souris et ne prend jamais le focus.").font(.caption).foregroundStyle(.secondary)
+                Toggle("Retrouver mes éléments dans Spotlight (noms seulement)", isOn: Binding(get: { s.spotlightIndex }, set: { on in
+                    s.spotlightIndex = on
+                    Task { if on { await SpotlightIndexer.shared.sync(model: model) } else { await SpotlightIndexer.shared.removeAll() } }
+                }))
+                Text("Seuls le nom, le type, les dates et l’emplacement sont indexés sur ce Mac — jamais le contenu des fichiers. L’index est effacé si vous décochez cette case ou vous déconnectez. Inutile si l’emplacement du Finder est actif : macOS indexe déjà ses fichiers.").font(.caption).foregroundStyle(.secondary)
+            }
             Section("À propos") {
                 LabeledContent("Version", value: "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
                 LabeledContent("Serveur", value: AppEnvironment.serverURL.host ?? "")
@@ -67,12 +82,20 @@ private struct SyncSettings: View {
                 Picker("Envoi", selection: Binding(get: { s.uploadLimitKB }, set: { s.uploadLimitKB = $0; Task { await model.applyTransferSettings() } })) { limits }
                 Picker("Réception", selection: Binding(get: { s.downloadLimitKB }, set: { s.downloadLimitKB = $0; Task { await model.applyTransferSettings() } })) { limits }
             }
+            Section("Énergie") {
+                Toggle("Ménager la batterie", isOn: Binding(get: { s.respectPower }, set: { s.respectPower = $0; Task { await model.applyTransferSettings() } }))
+                Text("En mode Économie d’énergie, ou sous 10 % de batterie, seuls les transferts que vous demandez passent, un à la fois ; le reste attend. Sous 20 %, deux transferts au plus.").font(.caption).foregroundStyle(.secondary)
+                if model.power.lowPowerMode || model.power.onBattery {
+                    LabeledContent("Maintenant", value: model.power.lowPowerMode ? "Mode Économie d’énergie" : "Sur batterie\(model.power.level.map { " · \(Int($0 * 100)) %" } ?? "")")
+                }
+            }
             Section("Transferts simultanés") {
                 Picker("Nombre", selection: Binding(get: { s.parallelTransfers }, set: { s.parallelTransfers = $0; Task { await model.applyTransferSettings() } })) {
                     Text("Automatique (selon le débit mesuré)").tag(0)
                     ForEach([1, 2, 3, 4, 6, 8], id: \.self) { Text("\($0)").tag($0) }
                 }
-                Text("En automatique, SP Drive ajoute des transferts tant que le débit total augmente, et se limite sur un partage de connexion ou en mode Données réduites.").font(.caption).foregroundStyle(.secondary)
+                Text("En automatique, SP Drive ajoute des transferts (jusqu’à 6) tant que le débit total augmente, en retire quand les échecs se répètent, et se limite sur un partage de connexion ou en mode Données réduites.").font(.caption).foregroundStyle(.secondary)
+                LabeledContent("En ce moment", value: "\(model.policy.concurrency) simultané\(model.policy.concurrency > 1 ? "s" : "") · \(SyncStatusText.channel(model.status).lowercased())")
             }
         }.formStyle(.grouped)
     }

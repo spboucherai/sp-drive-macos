@@ -1,6 +1,7 @@
 // Author: Simon-Pierre Boucher — contact@spboucher.ai
 // File: App/SPDriveApp.swift
-// Description: Entry point of SP Drive: the main window, the settings window and the menu bar item, all on one model.
+// Description: Entry point of SP Drive: main windows (several can be open on the same account), the settings window and the menu bar Command Center, all on one model.
+import CoreSpotlight
 import SwiftUI
 
 @main
@@ -9,14 +10,17 @@ struct SPDriveApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
-        Window(AppEnvironment.productName, id: "main") {
+        WindowGroup(AppEnvironment.productName, id: "main") {
             RootView()
                 .environment(model)
-                .frame(minWidth: 860, minHeight: 520)
+                .frame(minWidth: 900, minHeight: 540)
                 .task { delegate.model = model; await model.bootstrap() }
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    if let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String { model.reveal(itemID: id) } // a Spotlight result of SP Drive
+                }
         }
         .defaultSize(width: 1180, height: 760)
-        .commands { AppCommands(model: model) }
+        .commands { AppCommands(model: model, bridge: model.menuBridge) }
 
         Settings { SettingsView().environment(model) }
 

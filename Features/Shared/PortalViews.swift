@@ -87,6 +87,7 @@ struct PortalSheet: View {
 
 struct PortalsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var nav
     @State private var portals: [DepositPortal] = []
     @State private var loading = true
     @State private var error: String?
@@ -101,7 +102,7 @@ struct PortalsView: View {
             if portals.isEmpty {
                 if loading { ProgressView() }
                 else { ContentUnavailableView { Label("Aucun lien de dépôt", systemImage: "tray.and.arrow.down") } description: { Text(error ?? "Créez un lien de dépôt depuis le menu contextuel d’un dossier : d’autres personnes pourront y envoyer des fichiers sans rien voir de son contenu.") } actions: {
-                    Button("Créer un lien vers Mon Drive") { if let id = model.rootID, let root = model.item(id) { model.nav.sheet = .portal(folder: root) } }
+                    Button("Créer un lien vers Mon Drive") { if let id = model.rootID, let root = model.item(id) { nav.sheet = .portal(folder: root) } }
                 } }
             } else {
                 List {
@@ -118,7 +119,7 @@ struct PortalsView: View {
                                 let (text, color) = PortalsView.state(p.state)
                                 Text(text).font(.caption).padding(.horizontal, 6).padding(.vertical, 2).background(color.opacity(0.15), in: Capsule()).foregroundStyle(color)
                                 Menu {
-                                    Button("Voir le dossier de réception", systemImage: "folder") { model.nav.open(folder: p.folderId == model.rootID ? nil : p.folderId) }
+                                    Button("Voir le dossier de réception", systemImage: "folder") { nav.open(folder: p.folderId == model.rootID ? nil : p.folderId) }
                                     Button(submissions[p.id] == nil ? "Afficher les dépôts reçus" : "Masquer les dépôts", systemImage: "list.bullet") { Task { await toggleSubmissions(p) } }
                                     if p.revokedAt == nil {
                                         Button(p.active ? "Mettre en pause" : "Rouvrir", systemImage: p.active ? "pause.circle" : "play.circle") { Task { await setActive(p, !p.active) } }
@@ -135,7 +136,7 @@ struct PortalsView: View {
                                         Image(systemName: s.status == "completed" ? "checkmark.circle" : s.status == "rejected" ? "xmark.circle" : "clock").foregroundStyle(s.status == "completed" ? .green : .secondary)
                                         Text("\(Fmt.date(s.createdAt)) · \(s.name.isEmpty ? "Anonyme" : s.name) · \(s.placed) fichier(s) accepté(s)\(s.rejected > 0 ? ", \(s.rejected) refusé(s)" : "") · \(Fmt.bytes(s.bytes))").font(.caption)
                                         Spacer()
-                                        if let f = s.folderId { Button("Ouvrir") { model.nav.open(folder: f == model.rootID ? nil : f) }.controlSize(.small) }
+                                        if let f = s.folderId { Button("Ouvrir") { nav.open(folder: f == model.rootID ? nil : f) }.controlSize(.small) }
                                     }
                                 }
                             }
@@ -146,7 +147,7 @@ struct PortalsView: View {
         }
         .navigationTitle("Liens de dépôt")
         .toolbar { ToolbarItem { Button { Task { await reload() } } label: { Label("Actualiser", systemImage: "arrow.clockwise") } } }
-        .task(id: model.nav.sheet == nil) { await reload() }
+        .task(id: nav.sheet == nil) { await reload() }
     }
     private func reload() async {
         guard let api = model.api else { return }

@@ -21,6 +21,49 @@
 	<dict>
 		<key>NSExtensionFileProviderDocumentGroup</key><string>3YM54G49SN.ai.spboucher.spdrive.dev</string>
 		<key>NSExtensionFileProviderSupportsEnumeration</key><true/>
+		<key>NSExtensionFileProviderActions</key>
+		<array>
+			<dict>
+				<key>NSExtensionFileProviderActionIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).action.copyLink</string>
+				<key>NSExtensionFileProviderActionName</key><string>Copier un lien de partage</string>
+				<key>NSExtensionFileProviderActionActivationRule</key><string>fileproviderItems.@count == 1 AND SUBQUERY(fileproviderItems, $i, $i.userInfo.live == 1).@count == 1</string>
+			</dict>
+			<dict>
+				<key>NSExtensionFileProviderActionIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).action.keepOffline</string>
+				<key>NSExtensionFileProviderActionName</key><string>Garder disponible hors ligne</string>
+				<key>NSExtensionFileProviderActionActivationRule</key><string>SUBQUERY(fileproviderItems, $i, $i.userInfo.live == 1 AND $i.userInfo.pinned == 0).@count &gt; 0</string>
+			</dict>
+			<dict>
+				<key>NSExtensionFileProviderActionIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).action.releaseOffline</string>
+				<key>NSExtensionFileProviderActionName</key><string>Ne plus garder hors ligne et libérer l’espace</string>
+				<key>NSExtensionFileProviderActionActivationRule</key><string>SUBQUERY(fileproviderItems, $i, $i.userInfo.pinned == 1).@count &gt; 0</string>
+			</dict>
+			<dict>
+				<key>NSExtensionFileProviderActionIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).action.showVersions</string>
+				<key>NSExtensionFileProviderActionName</key><string>Afficher les versions dans SP Drive</string>
+				<key>NSExtensionFileProviderActionActivationRule</key><string>fileproviderItems.@count == 1 AND SUBQUERY(fileproviderItems, $i, $i.userInfo.file == 1 AND $i.userInfo.live == 1).@count == 1</string>
+			</dict>
+		</array>
+		<key>NSFileProviderDecorations</key>
+		<array>
+			<dict>
+				<key>Identifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).favorite</string>
+				<key>Label</key><string>Favori</string>
+				<key>Category</key><string>Badge</string>
+				<key>BadgeImageType</key><string>com.apple.icon-decoration.badge.heart</string>
+			</dict>
+			<dict>
+				<key>Identifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).blocked</string>
+				<key>Label</key><string>Bloqué par l’antivirus</string>
+				<key>Category</key><string>Badge</string>
+				<key>BadgeImageType</key><string>com.apple.icon-decoration.badge.warning</string>
+			</dict>
+			<dict>
+				<key>Identifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER).shared</string>
+				<key>Label</key><string>Partagé par lien</string>
+				<key>Category</key><string>Sharing</string>
+			</dict>
+		</array>
 		<key>NSExtensionPointIdentifier</key><string>com.apple.fileprovider-nonui</string>
 		<key>NSExtensionPrincipalClass</key><string>$(PRODUCT_MODULE_NAME).FileProviderExtension</string>
 	</dict>

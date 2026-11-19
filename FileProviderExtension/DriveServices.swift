@@ -36,8 +36,20 @@ final class DriveServices: Sendable {
     }
     func fpItem(_ item: DriveItem) -> FileProviderItem? {
         guard let root = store.rootID else { return nil }
-        return FileProviderItem(item, rootID: root, pinned: (try? store.isPinned(item.id)) ?? false)
+        return FileProviderItem(item, rootID: root, pinned: (try? store.isPinned(item.id)) ?? false, shared: sharedIDs().contains(item.id))
     }
+    /// Items with an active share link, as last written by the application (`shared_ids` in the mirror); re-read at most every two seconds.
+    private let sharedCache = SharedCache()
+    final class SharedCache: @unchecked Sendable { let lock = NSLock(); var ids: Set<String> = []; var at = Date.distantPast }
+    func sharedIDs() -> Set<String> {
+        sharedCache.lock.withLock {
+            if Date().timeIntervalSince(sharedCache.at) > 2 {
+                sharedCache.ids = Set(((try? store.meta("shared_ids")) ?? nil ?? "").split(separator: ",").map(String.init)); sharedCache.at = Date()
+            }
+            return sharedCache.ids
+        }
+    }
+    func forgetSharedCache() { sharedCache.lock.withLock { sharedCache.at = .distantPast } }
     /// Refreshes the mirror from the server when it is reachable; silent otherwise (the mirror then answers as it is).
     func pull() async {
         do { try await detector.pull() } catch { DriveServices.log.info("pull skipped: \(DriveError.wrap(error).code, privacy: .public)") }

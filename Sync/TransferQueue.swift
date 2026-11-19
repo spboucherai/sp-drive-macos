@@ -194,7 +194,9 @@ public actor TransferQueue {
     /// Queues a file for upload. The file is first copied into the work directory (a copy-on-write clone on APFS), so the
     /// queue owns stable bytes whatever happens to the original, across restarts and without the original's permissions.
     /// - Parameter replacing: send as a new version of this file instead of creating a new one.
-    @discardableResult public func enqueueUpload(file: URL, parent: String, name: String? = nil, replacing: DriveItem? = nil, priority: Int = 0, source: String = "app") throws -> Transfer {
+    /// - Parameter baseVersionID: with `replacing`, the version the new content was derived from. When the server holds
+    ///   another one by then, nothing is overwritten: the bytes become a conflict copy. nil replaces whatever is there.
+    @discardableResult public func enqueueUpload(file: URL, parent: String, name: String? = nil, replacing: DriveItem? = nil, baseVersionID: String? = nil, priority: Int = 0, source: String = "app") throws -> Transfer {
         let id = UUID().uuidString
         let clean = replacing?.name ?? NameRules.sanitize(name ?? file.lastPathComponent)
         let dir = workDirectory.appendingPathComponent("staging/\(id)", isDirectory: true)
@@ -203,7 +205,7 @@ public actor TransferQueue {
         try FileManager.default.copyItem(at: file, to: staged)
         let size = (try FileManager.default.attributesOfItem(atPath: staged.path)[.size] as? NSNumber)?.int64Value ?? 0
         let t = Transfer(id: id, direction: .upload, state: .queued, itemID: replacing?.id, parentID: replacing?.parentID ?? parent, name: clean, localPath: staged.path, size: size, done: 0, sha256: nil,
-                         baseVersionID: nil, versionID: nil, priority: priority, attempts: 0, error: nil, source: source, createdAt: Date(), finishedAt: nil)
+                         baseVersionID: replacing == nil ? nil : baseVersionID, versionID: nil, priority: priority, attempts: 0, error: nil, source: source, createdAt: Date(), finishedAt: nil)
         try insert(t)
         return t
     }

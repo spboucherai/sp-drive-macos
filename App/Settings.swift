@@ -23,6 +23,15 @@ import Observation
     var syncPaused: Bool { didSet { d.set(syncPaused, forKey: "syncPaused") } }
     var showMenuBarIcon: Bool { didSet { d.set(showMenuBarIcon, forKey: "showMenuBarIcon") } }
     var gridView: Bool { didSet { d.set(gridView, forKey: "gridView") } }
+    /// Low Power Mode and a low battery slow transfers down and hold background ones.
+    var respectPower: Bool { didSet { d.set(respectPower, forKey: "respectPower") } }
+    /// Floating drop zone on the desktop (off by default) and where its files go (nil = root of Mon Drive).
+    var dropZone: Bool { didSet { d.set(dropZone, forKey: "dropZone") } }
+    var dropZoneFolderID: String? { didSet { d.set(dropZoneFolderID, forKey: "dropZoneFolderID") } }
+    /// Names, kinds and dates of items indexed in Spotlight (never content). Off by default.
+    var spotlightIndex: Bool { didSet { d.set(spotlightIndex, forKey: "spotlightIndex") } }
+    /// Grid cell size step (0 small, 1 medium, 2 large).
+    var gridSize: Int { didSet { d.set(gridSize, forKey: "gridSize") } }
 
     init() {
         let d = AppEnvironment.defaults
@@ -30,5 +39,7 @@ import Observation
         finderIntegration = b("finderIntegration", true); notifyTransfers = b("notifyTransfers", true); notifyConflicts = b("notifyConflicts", true); notifyDeposits = b("notifyDeposits", true)
         uploadLimitKB = d.integer(forKey: "uploadLimitKB"); downloadLimitKB = d.integer(forKey: "downloadLimitKB"); parallelTransfers = d.integer(forKey: "parallelTransfers")
         biometricLock = b("biometricLock", false); syncPaused = b("syncPaused", false); showMenuBarIcon = b("showMenuBarIcon", true); gridView = b("gridView", false)
+        respectPower = b("respectPower", true); dropZone = b("dropZone", false); dropZoneFolderID = d.string(forKey: "dropZoneFolderID"); spotlightIndex = b("spotlightIndex", false)
+        gridSize = d.object(forKey: "gridSize") == nil ? 1 : d.integer(forKey: "gridSize")
     }
 }

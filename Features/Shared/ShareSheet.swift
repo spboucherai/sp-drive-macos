@@ -142,6 +142,7 @@ struct ShareRow: View {
 /// "Partagés par moi": every share link of the account.
 struct SharesView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var nav
     @State private var loading = true
     var body: some View {
         Group {
@@ -159,11 +160,11 @@ struct SharesView: View {
                         Spacer()
                         let (text, color) = ShareRow.status(l.status)
                         Text(text).font(.caption).padding(.horizontal, 6).padding(.vertical, 2).background(color.opacity(0.15), in: Capsule()).foregroundStyle(color)
-                        Button("Gérer") { if let id = l.targetId, let item = model.item(id) { model.nav.sheet = .share(item) } }.disabled(l.targetId.flatMap { model.item($0) } == nil)
+                        Button("Gérer") { if let id = l.targetId, let item = model.item(id) { nav.sheet = .share(item) } }.disabled(l.targetId.flatMap { model.item($0) } == nil)
                     }
                     .padding(.vertical, 3)
                     .contextMenu {
-                        if let id = l.targetId, let item = model.item(id) { Button("Afficher l’élément") { model.nav.open(folder: item.isFolder ? item.id : (item.parentID == model.rootID ? nil : item.parentID)); model.nav.selection = [item.id] } }
+                        if let id = l.targetId, let item = model.item(id) { Button("Afficher l’élément") { nav.open(folder: item.isFolder ? item.id : (item.parentID == model.rootID ? nil : item.parentID)); nav.selection = [item.id] } }
                         if l.isActive { Button("Révoquer", role: .destructive) { Task { try? await model.api?.revokeShare(l.id); await model.refreshShares() } } }
                     }
                 }

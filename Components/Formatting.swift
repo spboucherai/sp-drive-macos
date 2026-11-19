@@ -12,6 +12,17 @@ enum Fmt {
     static func speed(_ bps: Double) -> String { bps < 1 ? "" : "\(ByteCountFormatter.string(fromByteCount: Int64(bps), countStyle: .file))/s" }
     static func date(_ d: Date) -> String { d.formatted(date: .abbreviated, time: .shortened) }
     static func relative(_ d: Date) -> String { d.formatted(.relative(presentation: .named)) }
+    /// Date without the time (grid captions, pills).
+    static func day(_ d: Date) -> String { d.formatted(date: .abbreviated, time: .omitted) }
+    /// A time left, rounded the way a person says it: "8 s", "3 min", "1 h 20".
+    static func duration(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "—" }
+        let s = Int(seconds.rounded())
+        if s < 60 { return "\(max(s, 1)) s" }
+        if s < 3600 { return "\(Int((Double(s) / 60).rounded())) min" }
+        if s < 86400 { return "\(s / 3600) h \(String(format: "%02d", (s % 3600) / 60))" }
+        return "\(s / 86400) j"
+    }
     static func kind(_ item: DriveItem) -> String {
         if item.isFolder { return "Dossier" }
         if let t = UTType(filenameExtension: item.fileExtension), let d = t.localizedDescription { return d.prefix(1).uppercased() + d.dropFirst() }
@@ -41,12 +52,12 @@ struct ItemBadges: View {
     let item: DriveItem
     var body: some View {
         HStack(spacing: 5) {
-            if model.isPending(item.id) { badge("arrow.triangle.2.circlepath", "En attente d’envoi au serveur", .orange) }
-            if item.starred { badge("star.fill", "Favori", .yellow) }
-            if model.sharedIDs.contains(item.id) { badge("link", "Partagé par un lien", .accentColor) }
-            if model.isPinned(item.id) { badge("pin.fill", "Disponible hors ligne", .green) }
-            else if !item.isFolder, model.isLocal(item.id) { badge("checkmark.circle", "Copie sur ce Mac", .secondary) }
-            if item.scan == "infected" { badge("exclamationmark.shield.fill", "Bloqué par l’antivirus", .red) }
+            if model.isPending(item.id) { badge("arrow.triangle.2.circlepath", "En attente d’envoi au serveur", SPDTheme.warning) }
+            if item.starred { badge("star.fill", "Favori", SPDTheme.warning) }
+            if model.sharedIDs.contains(item.id) { badge("link", "Partagé par un lien", SPDTheme.brand) }
+            if model.isPinned(item.id) { badge("arrow.down.circle.fill", "Disponible hors ligne", SPDTheme.positive) }
+            else if !item.isFolder, model.isLocal(item.id) { badge("checkmark.circle", "Copie sur ce Mac", SPDTheme.textSecondary) }
+            if item.scan == "infected" { badge("exclamationmark.shield.fill", "Bloqué par l’antivirus", SPDTheme.critical) }
         }
         .font(.caption)
     }
@@ -62,7 +73,7 @@ struct SyncStateLabel: View {
         let (symbol, text): (String, String) = {
             if model.isPending(item.id) { return ("arrow.triangle.2.circlepath", "En attente") }
             if item.isTrashed { return ("trash", "Corbeille") }
-            if model.isPinned(item.id) { return ("pin.fill", "Hors ligne") }
+            if model.isPinned(item.id) { return ("arrow.down.circle.fill", "Hors ligne") }
             if !item.isFolder, model.isLocal(item.id) { return ("checkmark.circle", "Sur ce Mac") }
             return ("cloud", "Sur SP Drive")
         }()
@@ -75,14 +86,15 @@ struct BannerView: View {
     var body: some View {
         if let b = model.banner {
             HStack(spacing: 10) {
-                Image(systemName: b.isError ? "exclamationmark.triangle.fill" : "info.circle.fill").foregroundStyle(b.isError ? .orange : .accentColor)
+                Image(systemName: b.isError ? "exclamationmark.triangle.fill" : "info.circle.fill").foregroundStyle(b.isError ? SPDTheme.warning : SPDTheme.brand)
                 Text(b.text).font(.callout).lineLimit(3).textSelection(.enabled)
                 Spacer(minLength: 8)
                 Button { model.banner = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain).accessibilityLabel("Fermer le message")
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(SPDTheme.hairline))
+            .spdElevation(.e2)
             .padding(.horizontal, 16).padding(.bottom, 12)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .task(id: b.id) { try? await Task.sleep(nanoseconds: 9_000_000_000); if model.banner?.id == b.id { withAnimation { model.banner = nil } } }
@@ -90,17 +102,17 @@ struct BannerView: View {
     }
 }
 
-/// The SP Drive mark, drawn in SwiftUI (sign-in and welcome screens).
+/// The SP Drive mark, drawn in SwiftUI: a calm two-tone tile (indigo to violet, the kinship with the web app) — no gloss, no heavy gradient.
 struct DriveMark: View {
     var size: CGFloat = 84
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.36, green: 0.42, blue: 1), Color(red: 0.43, green: 0.24, blue: 0.95), Color(red: 0.23, green: 0.11, blue: 0.66)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [SPDTheme.brandIndigo, SPDTheme.brand], startPoint: .topLeading, endPoint: .bottomTrailing))
             Image(systemName: "folder.fill").font(.system(size: size * 0.5, weight: .regular)).foregroundStyle(.white.opacity(0.96))
-            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: size * 0.2, weight: .bold)).foregroundStyle(Color(red: 0.43, green: 0.24, blue: 0.95)).offset(y: size * 0.05)
+            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: size * 0.2, weight: .bold)).foregroundStyle(SPDTheme.Palette.brand.color).offset(y: size * 0.05).environment(\.colorScheme, .light)
         }
-        .frame(width: size, height: size).shadow(color: .black.opacity(0.18), radius: size * 0.12, y: size * 0.06)
+        .frame(width: size, height: size).spdElevation(size > 40 ? .e2 : .e1)
         .accessibilityHidden(true)
     }
 }

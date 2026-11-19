@@ -37,7 +37,30 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     var pendingInFinder = 0
     let settings = AppSettings()
     let notifier = Notifier()
+    /// The navigator of the first window; also the one test tooling and the menu bar act on. Other windows have their own.
     let nav = Navigator()
+    private var primaryNavigatorClaimed = false
+    /// The navigator of the key window: menu commands act on it.
+    var activeNav: Navigator?
+    let menuBridge = MenuBridge()
+    /// Keeps the menus in step with the key window: recomputed whenever anything it reads changes.
+    func trackMenus() {
+        let focus = withObservationTracking { menuFocus } onChange: { [weak self] in Task { @MainActor in self?.trackMenus() } }
+        if menuBridge.focus != focus { menuBridge.focus = focus }
+    }
+    /// What the menus need to know to enable their commands; nil when no signed-in window can receive them.
+    var menuFocus: WindowFocus? {
+        guard phase == .signedIn else { return nil }
+        let n = activeNav ?? nav
+        return WindowFocus(section: n.section, folderID: n.folderID, hasFolder: n.section == .drive && rootID != nil, selectionCount: n.selection.count,
+                           selectionHasTrashed: n.selection.contains { item($0)?.isTrashed == true }, canGoBack: n.canGoBack, canGoForward: n.canGoForward,
+                           locked: locked, paused: settings.syncPaused, finderReady: finderReady)
+    }
+    /// What the transfer queue currently allows and why (shown by the transfer centre and the menu bar).
+    var policy = TransferQueue.Policy()
+    var power = PowerState.unconstrained
+    let thumbnails = ThumbnailStore()
+    private let powerSource = SystemPowerSource()
 
     private(set) var api: APIClient?
     private(set) var store: MetadataStore?
@@ -51,8 +74,21 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     private var lastDepositCheck = Date.distantPast
     private var lastActive = Date()
 
+    // MARK: Windows
+    /// The first window takes the shared navigator; each further window gets its own.
+    func claimNavigator() -> Navigator {
+        if !primaryNavigatorClaimed { primaryNavigatorClaimed = true; return nav }
+        let n = Navigator(); n.folderID = nav.folderID
+        return n
+    }
+    func releaseNavigator(_ n: Navigator) { if n === nav { primaryNavigatorClaimed = false }; if activeNav === n { activeNav = nil } }
+
     // MARK: Session
+    private var bootstrapped = false
     func bootstrap() async {
+        guard !bootstrapped else { return } // every window calls this; only the first does the work
+        bootstrapped = true
+        trackMenus()
         do { api = try AppEnvironment.makeAPI() } catch { loginError = error.localizedDescription; phase = .signedOut; return }
         guard let api, (try? AppEnvironment.tokens.readToken()) != nil else { phase = .signedOut; autoLinkIfAsked(); return }
         do {
@@ -123,8 +159,9 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             AppEnvironment.currentAccount = user.id
             AppEnvironment.defaults.set(try? JSONEncoder().encode(user), forKey: "account")
             let store = try MetadataStore(url: AppEnvironment.databaseURL(account: user.id))
-            let engine = SyncEngine(api: api, store: store, network: network, workDirectory: AppEnvironment.workDirectory, deviceName: AppEnvironment.deviceName)
+            let engine = SyncEngine(api: api, store: store, network: network, workDirectory: AppEnvironment.workDirectory, deviceName: AppEnvironment.deviceName, power: powerSource)
             self.store = store; self.engine = engine; account = user; quota = q
+            thumbnails.configure(api: api, directory: cacheDirectory.appendingPathComponent("thumbnails", isDirectory: true))
             await engine.setRemoteChangeHandler { [weak self] changes in await self?.remoteChanged(changes) }
             await applyTransferSettings()
             if settings.syncPaused { await engine.pause() }
@@ -132,6 +169,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             tasks.append(Task { [weak self] in for await s in await engine.statusStream() { self?.statusChanged(s) } })
             tasks.append(Task { [weak self] in for await e in await engine.transfers.events() { await self?.transferEvent(e) } })
             tasks.append(Task { [weak self, network] in for await s in network.changes() { self?.online = s.online; if s.online { DriveDomain.shared.signalResolved(.serverUnreachable) } } })
+            tasks.append(Task { [weak self] in while !Task.isCancelled { await self?.refreshPolicy(); try? await Task.sleep(nanoseconds: 5_000_000_000) } }) // power changes without any transfer event
             observeSharedDatabase()
             phase = .signedIn; loginError = nil
             if settings.biometricLock { locked = true }
@@ -140,9 +178,13 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             notifier.requestAuthorization()
             await reloadLists()
             Task { await self.refreshShares() }
+            consumeFinderRequest() // the app may have been opened by the Finder action itself
             applyDevArguments()
+            DropZoneController.shared.update(model: self)
+            Task { await SpotlightIndexer.shared.sync(model: self) }
             #if SPD_DEV
             if UserDefaults.standard.bool(forKey: "spdSelfTest") { Task { await DevSelfTest.run(self) } }
+            if UserDefaults.standard.bool(forKey: "spdMenuProbe") { Task { await DevSelfTest.menuProbe(self) } }
             if UserDefaults.standard.bool(forKey: "spdTour") { Task { await DevTour.run(self, into: AppEnvironment.containerURL.appendingPathComponent("tour")) } } // inside the sandbox
             #endif
         } catch { loginError = "Impossible d’ouvrir la base locale : \(error.localizedDescription)"; phase = .signedOut }
@@ -151,7 +193,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     private func applyDevArguments() {
         #if SPD_DEV
         let d = UserDefaults.standard
-        if let s = d.string(forKey: "spdSection"), let section = SidebarItem(rawValue: s) { nav.section = section }
+        if let s = d.string(forKey: "spdSection"), let section = SidebarItem(rawValue: s), section.isAvailable { nav.section = section }
         if d.object(forKey: "spdGrid") != nil { settings.gridView = d.bool(forKey: "spdGrid") }
         if let name = d.string(forKey: "spdFolder"), let root = rootID, let f = children(of: root).first(where: { $0.name == name }) { nav.folderID = f.id }
         if let q = d.string(forKey: "spdSearch") { nav.searchText = q }
@@ -169,14 +211,18 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         case "rename": if let t = target { nav.sheet = .rename(t) }
         case "move": if let t = target { nav.sheet = .move([t]) }
         case "newFolder": if let r = nav.folderID ?? rootID { nav.sheet = .newFolder(parent: r) }
+        case "conflict": if let c = conflicts.first(where: \.isOpen) { nav.sheet = .conflict(c) }
         default: break
         }
+        if d.bool(forKey: "spdPalette") { nav.showPalette = true }
         #endif
     }
     private func leave() async {
         for t in tasks { t.cancel() }; tasks.removeAll()
         await engine?.stop()
         engine = nil; store = nil
+        thumbnails.reset()
+        DropZoneController.shared.hide()
     }
     /// Signs out: the device session is revoked, the Finder location removed (unsent edits are preserved by the system), the local mirror erased.
     func signOut() async {
@@ -185,6 +231,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         await api?.signOut()
         if let kept = try? await DriveDomain.shared.remove() { banner = Banner(text: "Des modifications non envoyées ont été conservées dans \(kept.path).", isError: false) }
         finderRegistered = false; finderEnabled = false
+        await SpotlightIndexer.shared.removeAll() // nothing about the account stays searchable on this Mac
         if let id { try? FileManager.default.removeItem(at: AppEnvironment.databaseURL(account: id).deletingLastPathComponent()) }
         try? FileManager.default.removeItem(at: AppEnvironment.workDirectory)
         try? FileManager.default.removeItem(at: cacheDirectory)
@@ -193,6 +240,15 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     }
     /// Number of local decisions and transfers the server has not confirmed yet (shown before signing out).
     var unsyncedCount: Int { status.pendingOperations + status.transfers.running + status.transfers.queued + status.transfers.paused + pendingInFinder }
+
+    /// Shows an item in the window: its folder, with the item selected (Spotlight result, Finder action, notification).
+    func reveal(itemID: String, sheet: ((DriveItem) -> SheetKind)? = nil) {
+        guard phase == .signedIn, let item = item(itemID), !item.isTrashed else { return }
+        if item.isFolder && sheet == nil { nav.go(to: item.isRoot ? nil : item.id) }
+        else { nav.go(to: item.parentID == rootID ? nil : item.parentID); nav.selection = [item.id] }
+        if let sheet { nav.sheet = sheet(item) }
+        AppDelegate.showMainWindow()
+    }
 
     // MARK: Lock
     func unlock() async {
@@ -223,9 +279,18 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         await reloadLists()
         await refreshAccount()
         await checkDeposits()
+        await SpotlightIndexer.shared.sync(model: self)
+    }
+    func refreshPolicy() async {
+        guard let engine else { return }
+        let p = await engine.transfers.policy()
+        if p != policy { policy = p }
+        let s = powerSource.state
+        if s != power { power = s }
     }
     private func transferEvent(_ e: TransferEvent) async {
         if let engine { transfers = await engine.transfers.list() }
+        await refreshPolicy()
         switch e {
         case .finished(let t, _):
             if t.direction == .upload { finishedInBatch.uploads += 1; revision += 1; DriveDomain.shared.signalChanges() } else { finishedInBatch.downloads += 1 }
@@ -257,6 +322,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
                 guard let self else { return }
                 let before = self.conflicts.filter(\.isOpen).count
                 self.revision += 1
+                self.consumeFinderRequest()
                 await self.reloadLists()
                 let open = self.conflicts.filter(\.isOpen)
                 if open.count > before, self.settings.notifyConflicts, let c = open.first {
@@ -265,6 +331,15 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
                 await self.engine?.poke()
             }
         })
+    }
+    /// Something asked for in the Finder's context menu that only the app can show (version history).
+    private func consumeFinderRequest() {
+        guard let store, let raw = (try? store.meta("ui_request")) ?? nil else { return }
+        try? store.setMeta("ui_request", nil)
+        let parts = raw.split(separator: "|").map(String.init)
+        guard parts.count == 3, let at = Double(parts[2]), Date().timeIntervalSince1970 - at < 120 else { return }
+        if parts[0] == "versions" { reveal(itemID: parts[1]) { .versions($0) } }
+        Task { await refreshShares() }
     }
     func reloadLists() async {
         guard let engine, let store else { return }
@@ -279,6 +354,13 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     func refreshShares() async {
         guard let api, let all = try? await api.shares() else { return }
         shares = all; sharedIDs = Set(all.filter(\.isActive).compactMap(\.targetId))
+        // the Finder shows "shared" on these items: the extension reads the list from the mirror
+        let joined = sharedIDs.sorted().joined(separator: ",")
+        if let store, ((try? store.meta("shared_ids")) ?? nil ?? "") != joined {
+            let before = Set(((try? store.meta("shared_ids")) ?? nil ?? "").split(separator: ",").map(String.init))
+            try? store.setMeta("shared_ids", joined); try? store.touch(Array(before.symmetricDifference(sharedIDs)))
+            DriveDomain.shared.signalChanges()
+        }
     }
     private func checkDeposits() async {
         guard settings.notifyDeposits, let api, Date().timeIntervalSince(lastDepositCheck) > 60 else { return }
@@ -298,6 +380,8 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         guard let engine else { return }
         await engine.transfers.setLimits(uploadBytesPerSecond: Int64(settings.uploadLimitKB) * 1024, downloadBytesPerSecond: Int64(settings.downloadLimitKB) * 1024)
         await engine.transfers.setManualConcurrency(settings.parallelTransfers > 0 ? settings.parallelTransfers : nil)
+        await engine.transfers.setPowerAware(settings.respectPower)
+        await refreshPolicy()
     }
     func applyFinderIntegration() async {
         do {
@@ -399,14 +483,15 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             let kids = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
             for k in kids.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) { await uploadOne(k, to: folder.id, engine: engine, failed: &failed) }
         } else {
-            do { _ = try await engine.transfers.enqueueUpload(file: url, parent: parent) } catch { failed += 1 }
+            do { _ = try await engine.transfers.enqueueUpload(file: url, parent: parent, priority: TransferPriority.userInitiated) } catch { failed += 1 }
         }
     }
-    /// Sends a local file as a new version of an existing file (the version history keeps the previous one).
+    /// Sends a local file as a new version of an existing file (the version history keeps the previous one). The upload
+    /// names the version this Mac knows: if another device replaced it meanwhile, a conflict is raised instead of a silent overwrite.
     func uploadNewVersion(of item: DriveItem, from url: URL) async {
         guard let engine else { return }
         let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do { _ = try await engine.transfers.enqueueUpload(file: url, parent: item.parentID ?? "root", replacing: item); changed() }
+        do { _ = try await engine.transfers.enqueueUpload(file: url, parent: item.parentID ?? "root", replacing: item, baseVersionID: item.versionID, priority: TransferPriority.userInitiated); changed() }
         catch { banner = Banner(text: "Nouvelle version : \(error.localizedDescription)", isError: true) }
     }
     var downloadsFolder: URL { FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0] }
@@ -427,11 +512,11 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
                         var dir = base
                         for comp in try store.path(to: f.id).dropFirst(depth).dropLast() { dir = try PathSafety.child(of: dir, named: NameRules.sanitize(comp.name)) }
                         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                        _ = try await engine.transfers.enqueueDownload(f, to: try PathSafety.child(of: dir, named: NameRules.sanitize(f.name)))
+                        _ = try await engine.transfers.enqueueDownload(f, to: try PathSafety.child(of: dir, named: NameRules.sanitize(f.name)), priority: TransferPriority.userInitiated)
                     }
                 } else {
                     let name = version.map { v in let (s, e) = NameRules.splitExtension(item.name); return "\(s) (version \(v.seq))\(e)" } ?? item.name
-                    _ = try await engine.transfers.enqueueDownload(item, version: version, to: uniqueURL(in: downloadsFolder, name: name))
+                    _ = try await engine.transfers.enqueueDownload(item, version: version, to: uniqueURL(in: downloadsFolder, name: name), priority: TransferPriority.userInitiated)
                 }
             } catch { banner = Banner(text: "Téléchargement de « \(item.name) » : \(DriveError.wrap(error).errorDescription ?? "échec")", isError: true) }
         }
@@ -442,18 +527,39 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     func cancelTransfer(_ id: String) async { await engine?.transfers.cancel(id); await reloadLists() }
     func removeTransfer(_ id: String) async { await engine?.transfers.remove(id); await reloadLists() }
     func clearFinishedTransfers() async { await engine?.transfers.clearFinished(); await reloadLists() }
+    /// "Send this one first".
+    func prioritizeTransfer(_ id: String) async { await engine?.transfers.setPriority(id, TransferPriority.urgent); await reloadLists() }
+    func retryAllFailed() async { for t in transfers where t.state == .failed { await engine?.transfers.resume(t.id) }; await reloadLists() }
+    /// Seconds left for everything in flight at the current speed; nil when it cannot be known honestly.
+    var secondsRemaining: Double? {
+        let s = status.transfers
+        guard s.speed > 1024, s.bytesLeft > 0, s.running > 0 else { return nil }
+        return Double(s.bytesLeft) / s.speed
+    }
 
     // MARK: Opening and previewing
     var cacheDirectory: URL { AppEnvironment.containerURL.appendingPathComponent("cache", isDirectory: true) }
     /// A local, verified copy of a file for preview: the Finder copy when it is on this Mac, a cached download otherwise.
-    func localCopy(of item: DriveItem) async throws -> URL {
+    /// - Parameter inContainer: always answer with a copy inside the app's own container (what Quick Look and a drag to
+    ///   another app are given: they cannot be handed a file of the Finder location from this sandbox). The copy of a
+    ///   file already on this Mac is an APFS clone: no bytes are duplicated, nothing is downloaded.
+    func localCopy(of item: DriveItem, inContainer: Bool = false) async throws -> URL {
         guard !item.isFolder, let api else { throw DriveError.local("pas de contenu à afficher") }
-        if finderReady, isLocal(item.id), let u = await DriveDomain.shared.url(for: item, rootID: rootID) { return u }
         let dir = cacheDirectory.appendingPathComponent("\(item.id)-\(item.versionID ?? item.sha256)", isDirectory: true)
         let dest = try PathSafety.child(of: dir, named: NameRules.sanitize(item.name))
+        if inContainer, FileManager.default.fileExists(atPath: dest.path) { return dest }
+        if finderReady, isLocal(item.id), let u = await DriveDomain.shared.url(for: item, rootID: rootID) {
+            guard inContainer else { return u }
+            if (try? await DriveDomain.shared.copyOut(u, to: dest, sha256: item.sha256)) != nil { return dest } // otherwise fall through to a verified download
+        }
         if FileManager.default.fileExists(atPath: dest.path) { return dest }
         try await DownloadEngine(api: api).download(fileID: item.id, versionID: item.versionID, sha256: item.sha256, size: item.size, to: dest, partial: dir.appendingPathComponent(".part"))
         return dest
+    }
+    /// The verified copy already made for a preview, when there is one (never downloads).
+    func existingLocalCopy(of item: DriveItem) -> URL? {
+        guard !item.isFolder, let dest = try? PathSafety.child(of: cacheDirectory.appendingPathComponent("\(item.id)-\(item.versionID ?? item.sha256)", isDirectory: true), named: NameRules.sanitize(item.name)) else { return nil }
+        return FileManager.default.fileExists(atPath: dest.path) ? dest : nil
     }
     /// Opens a file in its application. Through the Finder location when it exists, so that edits are synced back.
     func open(_ item: DriveItem) async {
@@ -515,11 +621,27 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     func clearCache() { try? FileManager.default.removeItem(at: cacheDirectory); revision += 1 }
 
     // MARK: Conflicts
-    func resolve(_ c: SyncConflict, _ choice: ConflictChoice) async {
-        guard let engine else { return }
-        do { try await engine.conflicts.resolve(c, choice); await engine.poke(); await reloadLists(); revision += 1 }
-        catch { banner = Banner(text: "Conflit : \(DriveError.wrap(error).errorDescription ?? "échec")", isError: true) }
+    /// The person's decision on a conflict. `.mineAsVersion` makes this Mac's content the new current version of the file
+    /// (the server's version stays in the history); nothing is ever replaced without having been named.
+    enum ConflictDecision { case keepBoth, mineAsVersion, server }
+    @discardableResult func resolve(_ c: SyncConflict, _ decision: ConflictDecision) async -> Bool {
+        guard let engine else { return false }
+        do {
+            switch decision {
+            case .keepBoth: try await engine.conflicts.resolve(c, .keepBoth)
+            case .server: try await engine.conflicts.resolve(c, .keepServer)
+            case .mineAsVersion: try await engine.conflicts.resolveKeepingMineAsNewVersion(c, workDirectory: AppEnvironment.workDirectory, deviceName: AppEnvironment.deviceName)
+            }
+            await engine.poke(); await reloadLists(); revision += 1; DriveDomain.shared.signalChanges()
+            return true
+        } catch {
+            let e = DriveError.wrap(error)
+            banner = Banner(text: e.code == "version_conflict" ? "Le fichier a encore changé sur le serveur : rien n’a été remplacé. Regardez de nouveau les deux versions." : "Conflit : \(e.errorDescription ?? "échec")", isError: true)
+            await engine.poke(); await reloadLists()
+            return false
+        }
     }
+    func resolve(_ c: SyncConflict, _ choice: ConflictChoice) async { await resolve(c, choice == .keepBoth ? .keepBoth : choice == .keepServer ? .server : .mineAsVersion) }
 }
 
 /// Darwin notifications (cross-process, no payload) as an async stream.

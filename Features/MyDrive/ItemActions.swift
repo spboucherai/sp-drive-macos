@@ -1,6 +1,6 @@
 // Author: Simon-Pierre Boucher — contact@spboucher.ai
 // File: Features/MyDrive/ItemActions.swift
-// Description: What can be done with the selected items — context menu, toolbar, application menu and keyboard shortcuts share the same actions.
+// Description: What can be done with the selected items — context menu, toolbar, application menu and keyboard shortcuts share the same actions. Model and navigator are passed explicitly: menus and toolbars are hosted outside the SwiftUI environment.
 import AppKit
 import SPDriveCore
 import SwiftUI
@@ -24,17 +24,20 @@ enum Pickers {
 }
 
 struct ItemMenu: View {
-    @Environment(AppModel.self) private var model
+    let model: AppModel
+    let nav: Navigator
     let items: [DriveItem]
     let currentFolderID: String?
     var preview: (DriveItem?) -> Void = { _ in }
+    var rename: ((DriveItem) -> Void)?
 
     var body: some View {
-        let nav = model.nav
         if items.isEmpty {
             if let id = currentFolderID {
                 Button("Nouveau dossier", systemImage: "folder.badge.plus") { nav.sheet = .newFolder(parent: id) }
                 Button("Téléverser…", systemImage: "arrow.up.doc") { let urls = Pickers.chooseUploads(); if !urls.isEmpty { Task { await model.upload(urls, to: id) } } }
+                Divider()
+                Button(model.settings.gridView ? "Afficher en liste" : "Afficher en grille", systemImage: model.settings.gridView ? "list.bullet" : "square.grid.2x2") { model.settings.gridView.toggle() }
             }
             if nav.section == .trash { Button("Vider la corbeille…", systemImage: "trash.slash", role: .destructive) { nav.confirmEmptyTrash = true } }
         } else if items.allSatisfy(\.isTrashed) {
@@ -44,9 +47,9 @@ struct ItemMenu: View {
         } else {
             let single = items.count == 1 ? items.first : nil
             if let s = single {
-                Button(s.isFolder ? "Ouvrir" : "Ouvrir", systemImage: "arrow.up.forward.app") { if s.isFolder { nav.open(folder: s.id) } else { Task { await model.open(s) } } }
+                Button("Ouvrir", systemImage: s.isFolder ? "folder" : "arrow.up.forward.app") { if s.isFolder { nav.go(to: s.id) } else { Task { await model.open(s) } } }
                 if !s.isFolder { Button("Coup d’œil", systemImage: "eye") { preview(s) } }
-                Button("Afficher dans le Finder", systemImage: "folder") { Task { await model.revealInFinder(s) } }
+                Button("Afficher dans le Finder", systemImage: "macwindow") { Task { await model.revealInFinder(s) } }
                 Divider()
             }
             Button("Télécharger", systemImage: "arrow.down.circle") { Task { await model.download(items) } }
@@ -69,7 +72,7 @@ struct ItemMenu: View {
                     Button("Téléverser une nouvelle version…", systemImage: "arrow.up.doc") { if let u = Pickers.chooseFile(message: "Nouvelle version de « \(s.name) »") { Task { await model.uploadNewVersion(of: s, from: u) } } }
                 }
                 Divider()
-                Button("Renommer…", systemImage: "pencil") { nav.sheet = .rename(s) }
+                Button("Renommer", systemImage: "pencil") { if let rename { rename(s) } else { nav.sheet = .rename(s) } }
             }
             Button("Déplacer…", systemImage: "folder.badge.gearshape") { nav.sheet = .move(items) }
             Button("Dupliquer", systemImage: "plus.square.on.square") { model.duplicate(items) }
@@ -84,82 +87,111 @@ struct ItemMenu: View {
 
 struct BrowserToolbar: ToolbarContent {
     let model: AppModel
+    let nav: Navigator
     let currentFolderID: String?
     let selection: [DriveItem]
+    @Binding var sort: (BrowserSort, SortOrder)
 
     var body: some ToolbarContent {
-        let nav = model.nav
         ToolbarItem(placement: .navigation) {
-            Button { goUp() } label: { Label("Dossier parent", systemImage: "chevron.left") }
-                .disabled(nav.section != .drive || nav.folderID == nil).help("Remonter au dossier parent (⌘↑)")
+            ControlGroup {
+                Button { nav.back() } label: { Label("Précédent", systemImage: "chevron.left") }.disabled(!nav.canGoBack).help("Dossier précédent (⌘[)")
+                Button { nav.forward() } label: { Label("Suivant", systemImage: "chevron.right") }.disabled(!nav.canGoForward).help("Dossier suivant (⌘])")
+            }
         }
         ToolbarItemGroup(placement: .primaryAction) {
             if let id = currentFolderID {
-                Button { nav.sheet = .newFolder(parent: id) } label: { Label("Nouveau dossier", systemImage: "folder.badge.plus") }.help("Nouveau dossier (⇧⌘N)")
-                Button { let urls = Pickers.chooseUploads(); if !urls.isEmpty { Task { await model.upload(urls, to: id) } } } label: { Label("Téléverser", systemImage: "arrow.up.doc") }.help("Téléverser des fichiers ou des dossiers (⌘U)")
+                Menu {
+                    Button("Nouveau dossier", systemImage: "folder.badge.plus") { nav.sheet = .newFolder(parent: id) }
+                    Button("Téléverser des fichiers ou des dossiers…", systemImage: "arrow.up.doc") { let urls = Pickers.chooseUploads(); if !urls.isEmpty { Task { await model.upload(urls, to: id) } } }
+                    if let f = model.item(id) { Button("Créer un lien de dépôt vers ce dossier…", systemImage: "tray.and.arrow.down") { nav.sheet = .portal(folder: f) } }
+                } label: { Label("Ajouter", systemImage: "plus") } primaryAction: {
+                    let urls = Pickers.chooseUploads(); if !urls.isEmpty { Task { await model.upload(urls, to: id) } }
+                }
+                .help("Téléverser (⌘U) — maintenir pour créer un dossier (⇧⌘N)")
             }
             if nav.section == .trash {
                 Button { nav.confirmEmptyTrash = true } label: { Label("Vider la corbeille", systemImage: "trash.slash") }.disabled(model.trash().isEmpty).help("Vider la corbeille")
             } else {
-                Button { Task { await model.download(selection) } } label: { Label("Télécharger", systemImage: "arrow.down.circle") }.disabled(selection.isEmpty).help("Télécharger la sélection")
-                Button { if let s = selection.first { nav.sheet = .share(s) } } label: { Label("Partager", systemImage: "link") }.disabled(selection.count != 1).help("Créer ou gérer un lien de partage")
+                Button { Task { await model.download(selection) } } label: { Label("Télécharger", systemImage: "arrow.down.circle") }.disabled(selection.isEmpty).help("Télécharger la sélection (⌥⌘D)")
+                Button { if let s = selection.first { nav.sheet = .share(s) } } label: { Label("Partager", systemImage: "link") }.disabled(selection.count != 1).help("Créer ou gérer un lien de partage (⇧⌘L)")
             }
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
             Picker("Présentation", selection: Binding(get: { model.settings.gridView }, set: { model.settings.gridView = $0 })) {
                 Label("Liste", systemImage: "list.bullet").tag(false)
                 Label("Grille", systemImage: "square.grid.2x2").tag(true)
             }
-            .pickerStyle(.segmented).help("Liste ou grille")
+            .pickerStyle(.segmented).help("Liste (⌘1) ou grille (⌘2)")
+            Menu {
+                Picker("Trier par", selection: Binding(get: { sort.0 }, set: { sort = ($0, sort.1) })) { ForEach(BrowserSort.allCases) { Text($0.title).tag($0) } }.pickerStyle(.inline)
+                Picker("Ordre", selection: Binding(get: { sort.1 == .forward }, set: { sort = (sort.0, $0 ? .forward : .reverse) })) { Text("Croissant").tag(true); Text("Décroissant").tag(false) }.pickerStyle(.inline)
+            } label: { Label("Trier", systemImage: "arrow.up.arrow.down") }.help("Ordre de tri")
+            Button { nav.showPalette = true } label: { Label("Commandes", systemImage: "command") }.help("Palette de commandes (⌘K)")
             Button { nav.showInspector.toggle() } label: { Label("Informations", systemImage: "sidebar.trailing") }.help("Afficher les informations (⌘I)")
         }
     }
-    private func goUp() {
-        guard let id = model.nav.folderID, let f = model.item(id) else { model.nav.folderID = nil; return }
-        model.nav.folderID = f.parentID == model.rootID ? nil : f.parentID
-    }
 }
 
-/// Menu-bar commands and their keyboard shortcuts.
+/// Menu-bar commands and their keyboard shortcuts. They act on the window that has the focus, and enable themselves from
+/// what that window publishes (`WindowFocus`).
 struct AppCommands: Commands {
     let model: AppModel
-    private var nav: Navigator { model.nav }
+    /// State of the key window, kept current by the model: that is what re-validates the menus.
+    @ObservedObject var bridge: MenuBridge
+    private var info: WindowFocus? { bridge.focus }
+    @Environment(\.openWindow) private var openWindow
+    private var nav: Navigator { model.activeNav ?? model.nav }
     private var selection: [DriveItem] { nav.selection.compactMap { model.item($0) } }
     private var folder: String? { nav.section == .drive ? (nav.folderID ?? model.rootID) : nil }
-    private var signedIn: Bool { model.phase == .signedIn && !model.locked }
+    /// A signed-in, unlocked window has the focus.
+    private var ready: Bool { info.map { !$0.locked } ?? false }
+    private var count: Int { ready ? (info?.selectionCount ?? 0) : 0 }
+    private var live: Bool { !(info?.selectionHasTrashed ?? false) }
+    private func parent() { guard let id = nav.folderID, let f = model.item(id) else { return }; nav.go(to: f.parentID == model.rootID ? nil : f.parentID, direction: .shallower) }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Nouveau dossier") { if let f = folder { nav.sheet = .newFolder(parent: f) } }.keyboardShortcut("n", modifiers: [.command, .shift]).disabled(!signedIn || folder == nil)
-            Button("Téléverser…") { if let f = folder { let urls = Pickers.chooseUploads(); if !urls.isEmpty { Task { await model.upload(urls, to: f) } } } }.keyboardShortcut("u").disabled(!signedIn || folder == nil)
+            Button("Nouvelle fenêtre") { openWindow(id: "main") }.keyboardShortcut("n")
+            Button("Nouveau dossier") { if let f = folder { nav.sheet = .newFolder(parent: f) } }.keyboardShortcut("n", modifiers: [.command, .shift]).disabled(!ready || info?.hasFolder != true)
+            Button("Téléverser…") { if let f = folder { let urls = Pickers.chooseUploads(); if !urls.isEmpty { Task { await model.upload(urls, to: f) } } } }.keyboardShortcut("u").disabled(!ready || info?.hasFolder != true)
             Divider()
-            Button("Ouvrir") { if let s = selection.first { if s.isFolder { nav.open(folder: s.id) } else { Task { await model.open(s) } } } }.keyboardShortcut(.downArrow).disabled(selection.count != 1)
-            Button("Dossier parent") { if let id = nav.folderID, let f = model.item(id) { nav.folderID = f.parentID == model.rootID ? nil : f.parentID } }.keyboardShortcut(.upArrow).disabled(nav.folderID == nil)
-            Button("Télécharger") { Task { await model.download(selection) } }.keyboardShortcut("d", modifiers: [.command, .option]).disabled(selection.isEmpty)
-            Button("Afficher dans le Finder") { if let s = selection.first { Task { await model.revealInFinder(s) } } }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(selection.count != 1)
+            Button("Ouvrir") { if let s = selection.first { if s.isFolder { nav.go(to: s.id) } else { Task { await model.open(s) } } } }.keyboardShortcut(.downArrow).disabled(count != 1 || !live)
+            Button("Dossier parent") { parent() }.keyboardShortcut(.upArrow).disabled(!ready || info?.folderID == nil || info?.section != .drive)
+            Button("Précédent") { nav.back() }.keyboardShortcut("[").disabled(!ready || info?.canGoBack != true)
+            Button("Suivant") { nav.forward() }.keyboardShortcut("]").disabled(!ready || info?.canGoForward != true)
+            Divider()
+            Button("Télécharger") { Task { await model.download(selection) } }.keyboardShortcut("d", modifiers: [.command, .option]).disabled(count == 0 || !live)
+            Button("Afficher dans le Finder") { if let s = selection.first { Task { await model.revealInFinder(s) } } }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(count != 1 || !live)
         }
         CommandGroup(after: .pasteboard) {
             Divider()
-            Button("Renommer…") { if let s = selection.first { nav.sheet = .rename(s) } }.disabled(selection.count != 1 || selection.first?.isTrashed == true)
-            Button("Déplacer…") { nav.sheet = .move(selection) }.keyboardShortcut("m", modifiers: [.command, .shift]).disabled(selection.isEmpty || selection.contains(where: \.isTrashed))
-            Button("Dupliquer") { model.duplicate(selection) }.keyboardShortcut("d").disabled(selection.isEmpty || selection.contains(where: \.isTrashed))
-            Button("Ajouter aux favoris") { model.setStarred(selection, true) }.keyboardShortcut("f", modifiers: [.command, .control]).disabled(selection.isEmpty)
-            Button("Garder disponible hors ligne") { Task { await model.setPinned(selection, true) } }.keyboardShortcut("p", modifiers: [.command, .shift]).disabled(selection.isEmpty)
-            Button("Partager…") { if let s = selection.first { nav.sheet = .share(s) } }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(selection.count != 1)
-            Button("Supprimer du Drive") { model.trash(selection) }.keyboardShortcut(.delete).disabled(selection.isEmpty || selection.contains(where: \.isTrashed))
+            Button("Renommer") { if let s = selection.first { nav.renamingID = s.id } }.disabled(count != 1 || !live)
+            Button("Déplacer…") { nav.sheet = .move(selection) }.keyboardShortcut("m", modifiers: [.command, .shift]).disabled(count == 0 || !live)
+            Button("Dupliquer") { model.duplicate(selection) }.keyboardShortcut("d").disabled(count == 0 || !live)
+            Button("Ajouter aux favoris") { model.setStarred(selection, true) }.keyboardShortcut("f", modifiers: [.command, .control]).disabled(count == 0 || !live)
+            Button("Garder disponible hors ligne") { Task { await model.setPinned(selection, true) } }.keyboardShortcut("p", modifiers: [.command, .shift]).disabled(count == 0 || !live)
+            Button("Partager…") { if let s = selection.first { nav.sheet = .share(s) } }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(count != 1 || !live)
+            Button("Supprimer du Drive") { model.trash(selection) }.keyboardShortcut(.delete).disabled(count == 0 || !live)
+            Divider()
+            Button("Rechercher") { WindowTools.focusSearch(in: WindowTools.keyBrowserWindow) }.keyboardShortcut("f").disabled(!ready)
+            Button("Palette de commandes…") { nav.showPalette.toggle() }.keyboardShortcut("k").disabled(!ready)
         }
         CommandGroup(after: .sidebar) {
-            Button("En liste") { model.settings.gridView = false }.keyboardShortcut("1")
-            Button("En grille") { model.settings.gridView = true }.keyboardShortcut("2")
-            Button("Informations") { nav.showInspector.toggle() }.keyboardShortcut("i")
+            Button("En liste") { model.settings.gridView = false }.keyboardShortcut("1").disabled(!ready)
+            Button("En grille") { model.settings.gridView = true }.keyboardShortcut("2").disabled(!ready)
+            Button("Informations") { nav.showInspector.toggle() }.keyboardShortcut("i").disabled(!ready)
             Divider()
             ForEach(Array([SidebarItem.drive, .recent, .favorites, .offline, .transfers, .trash].enumerated()), id: \.element) { i, s in
-                Button(s.title) { nav.section = s }.keyboardShortcut(KeyEquivalent(Character("\(i + 3)")), modifiers: [.command, .option])
+                Button(s.title) { nav.section = s }.keyboardShortcut(KeyEquivalent(Character("\(i + 3)")), modifiers: [.command, .option]).disabled(!ready)
             }
         }
         CommandMenu("Synchronisation") {
-            Button("Synchroniser maintenant") { Task { await model.syncNow() } }.keyboardShortcut("r").disabled(!signedIn)
-            Button(model.settings.syncPaused ? "Reprendre la synchronisation" : "Mettre en pause") { Task { await model.setPaused(!model.settings.syncPaused) } }.disabled(!signedIn)
+            Button("Synchroniser maintenant") { Task { await model.syncNow() } }.keyboardShortcut("r").disabled(!ready)
+            Button(info?.paused == true ? "Reprendre la synchronisation" : "Mettre en pause") { Task { await model.setPaused(!model.settings.syncPaused) } }.disabled(!ready)
+            Button("Centre de transferts") { nav.section = .transfers }.keyboardShortcut("t", modifiers: [.command, .option]).disabled(!ready)
             Divider()
-            Button("Ouvrir SP Drive dans le Finder") { Task { await DriveDomain.shared.openInFinder() } }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(!model.finderReady)
+            Button("Ouvrir SP Drive dans le Finder") { Task { await DriveDomain.shared.openInFinder() } }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(info?.finderReady != true)
         }
     }
 }

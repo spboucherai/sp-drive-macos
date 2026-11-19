@@ -2,6 +2,7 @@
 // File: App/AppDelegate.swift
 // Description: Application lifecycle: SP Drive keeps syncing from the menu bar when its window is closed, resumes after sleep, and re-locks after a period away when the biometric lock is on.
 import AppKit
+import Quartz
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -9,6 +10,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Opens the main window (set by the views, which own SwiftUI's window actions).
     static var openMainWindow: (() -> Void)?
     private var hasMainWindow: Bool { NSApp.windows.contains { $0.isVisible && $0.canBecomeMain } }
+    /// Brings a main window forward, opening one when none is left.
+    static func showMainWindow() {
+        if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) { w.makeKeyAndOrderFront(nil) } else { openMainWindow?() }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // The Quick Look panel looks for its controller along the responder chain, which ends here.
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) { MainActor.assumeIsolated { QuickLookCoordinator.shared.adopt(panel) } }
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) { MainActor.assumeIsolated { QuickLookCoordinator.shared.release(panel) } }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in

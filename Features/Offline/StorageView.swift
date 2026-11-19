@@ -6,6 +6,7 @@ import SwiftUI
 
 struct StorageView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var nav
     @State private var counts = MetadataStore.Counts(files: 0, folders: 0, bytes: 0, trashed: 0)
     @State private var local = MetadataStore.LocalUsage(files: 0, bytes: 0, pinnedBytes: 0)
     @State private var cache: Int64 = 0
@@ -17,7 +18,7 @@ struct StorageView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if let q = model.quota, q.limit > 0 {
                     card("Sur MacLustr", symbol: "server.rack") {
-                        ProgressView(value: Double(min(q.used, q.limit)), total: Double(q.limit)).tint(Double(q.used) / Double(q.limit) > 0.9 ? .orange : .accentColor)
+                        QuotaBar(used: q.used, limit: q.limit)
                         HStack { stat("Utilisé", Fmt.bytes(q.used)); stat("Disponible", Fmt.bytes(q.free)); stat("Total", Fmt.bytes(q.limit)) }
                         Text("L’espace utilisé compte chaque contenu une fois, versions et corbeille comprises.").font(.caption).foregroundStyle(.secondary)
                     }
@@ -32,7 +33,7 @@ struct StorageView: View {
                     HStack {
                         Button("Libérer l’espace des copies non épinglées…") { confirmFree = true }.disabled(local.bytes - local.pinnedBytes <= 0)
                         Button("Vider le cache d’aperçus") { model.clearCache(); refresh() }.disabled(cache == 0)
-                        Button("Gérer les éléments hors ligne") { model.nav.section = .offline }
+                        Button("Gérer les éléments hors ligne") { nav.section = .offline }
                     }
                     Text("« Libérer l’espace » retire seulement la copie de ce Mac : les fichiers restent sur SP Drive et se retéléchargent à l’ouverture. Les éléments épinglés et les modifications pas encore envoyées ne sont jamais retirés.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -40,18 +41,19 @@ struct StorageView: View {
                     if largest.isEmpty { Text("Aucun fichier.").foregroundStyle(.secondary) }
                     ForEach(largest) { f in
                         HStack {
-                            ItemIcon(item: f, size: 18)
+                            ItemThumbnail(model: model, item: f, side: 18)
                             Text(f.name).lineLimit(1).truncationMode(.middle)
                             ItemBadges(model: model, item: f)
                             Spacer()
                             Text(Fmt.bytes(f.size)).monospacedDigit().foregroundStyle(.secondary)
-                            Button("Afficher") { model.nav.open(folder: f.parentID == model.rootID ? nil : f.parentID); model.nav.selection = [f.id] }.controlSize(.small)
+                            Button("Afficher") { nav.open(folder: f.parentID == model.rootID ? nil : f.parentID); nav.selection = [f.id] }.controlSize(.small)
                         }
                     }
                 }
             }
             .padding(20).frame(maxWidth: 820, alignment: .leading)
         }
+        .background(SPDTheme.surface)
         .navigationTitle("Stockage")
         .task(id: model.revision) { refresh(); await model.refreshAccount() }
         .confirmationDialog("Libérer l’espace local ?", isPresented: $confirmFree) {
@@ -68,11 +70,11 @@ struct StorageView: View {
         cache = model.cacheBytes()
     }
     private func card<C: View>(_ title: String, symbol: String, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 10) { Label(title, systemImage: symbol).font(.headline); content() }
-            .padding(16).frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        VStack(alignment: .leading, spacing: 10) { Label(title, systemImage: symbol).font(SPDTheme.Typo.headline); content() }
+            .frame(maxWidth: .infinity, alignment: .leading).spdCard()
     }
     private func stat(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) { Text(value).font(.title3.weight(.semibold)).monospacedDigit(); Text(label).font(.caption).foregroundStyle(.secondary) }
+        VStack(alignment: .leading, spacing: 1) { Text(value).font(SPDTheme.Typo.figure); Text(label).font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textSecondary) }
             .frame(maxWidth: .infinity, alignment: .leading).accessibilityElement(children: .combine)
     }
 }

@@ -1,69 +1,82 @@
 // Author: Simon-Pierre Boucher — contact@spboucher.ai
 // File: Features/Home/MainView.swift
-// Description: Main window: sidebar, the section shown next to it, the sheets, and the message banner.
+// Description: Main window: the sidebar (library, sharing, activity), the section shown next to it, the command palette above, the sheets, and the message banner.
 import SPDriveCore
 import SPDriveSync
 import SwiftUI
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var nav
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        @Bindable var nav = model.nav
+        @Bindable var nav = nav
+        let openConflicts = model.conflicts.filter(\.isOpen).count
         NavigationSplitView {
             List(selection: Binding(get: { nav.section }, set: { if let s = $0 { nav.section = s } })) {
-                Section("SP Drive") {
-                    row(.drive); row(.recent); row(.favorites); row(.offline)
+                Section("Bibliothèque") { row(.drive); row(.recent); row(.favorites); row(.offline) }
+                // SP Drive 2.0 (phase 2): listed only when the server offers them
+                if SidebarItem.collections.isAvailable { Section("Collections") { row(.collections) } }
+                Section("Partage") {
+                    row(.shared)
+                    if SidebarItem.sharedWithMe.isAvailable { row(.sharedWithMe) }
+                    row(.portals)
                 }
-                Section("Partage") { row(.shared); row(.portals) }
                 Section("Activité") {
                     row(.transfers, badge: model.status.transfers.running + model.status.transfers.queued)
-                    row(.downloads)
-                    row(.conflicts, badge: model.conflicts.filter(\.isOpen).count)
+                    if openConflicts > 0 || nav.section == .conflicts { row(.conflicts, badge: openConflicts) } // shown when there is something to settle
                     row(.trash)
                 }
-                Section("Ce Mac") {
-                    row(.storage)
-                    Button { openSettings() } label: { Label("Paramètres", systemImage: "gearshape") }.buttonStyle(.plain)
-                }
+                Section("Ce Mac") { row(.storage) }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
-            .safeAreaInset(edge: .bottom) { SidebarFooter() }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 300)
+            .safeAreaInset(edge: .bottom, spacing: 0) { SidebarFooter(model: model, nav: nav) }
         } detail: {
             VStack(spacing: 0) {
-            ZStack(alignment: .bottom) {
-                Group {
-                    switch nav.section {
-                    case .drive, .recent, .favorites, .offline, .trash: BrowserView()
-                    case .shared: SharesView()
-                    case .portals: PortalsView()
-                    case .transfers: TransfersView(downloadsOnly: false)
-                    case .downloads: TransfersView(downloadsOnly: true)
-                    case .conflicts: ConflictsView()
-                    case .storage: StorageView()
+                ZStack(alignment: .bottom) {
+                    Group {
+                        switch nav.section {
+                        case .drive, .recent, .favorites, .offline, .trash: BrowserView()
+                        case .shared: SharesView()
+                        case .portals: PortalsView()
+                        case .transfers, .downloads: TransfersView()
+                        case .conflicts: ConflictsView()
+                        case .storage: StorageView()
+                        case .collections, .sharedWithMe: EmptyView()
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    BannerView()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                BannerView()
+                FinderEnableBanner()
             }
-            FinderEnableBanner()
-            }
-            .animation(.default, value: model.banner)
+            .spdMotion(.reveal, value: model.banner)
         }
+        .overlay(alignment: .top) {
+            if nav.showPalette {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.14).ignoresSafeArea().onTapGesture { nav.showPalette = false }
+                    CommandPalette(model: model, nav: nav).padding(.top, 72)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+            }
+        }
+        .spdMotion(.reveal, value: nav.showPalette)
         .sheet(item: $nav.sheet) { kind in
             Group {
-            switch kind {
-            case .newFolder(let parent): NameSheet(title: "Nouveau dossier", initial: "Nouveau dossier", action: "Créer") { model.createFolder(in: parent, name: $0) }
-            case .rename(let item): NameSheet(title: "Renommer « \(item.name) »", initial: item.name, action: "Renommer", selectStem: !item.isFolder) { model.rename(item, to: $0) }
-            case .move(let items): MoveSheet(items: items)
-            case .share(let item): ShareSheet(item: item)
-            case .portal(let folder): PortalSheet(folder: folder)
-            case .versions(let item): VersionsSheet(item: item)
+                switch kind {
+                case .newFolder(let parent): NameSheet(title: "Nouveau dossier", initial: "Nouveau dossier", action: "Créer") { if let f = model.createFolder(in: parent, name: $0) { nav.selection = [f.id] } }
+                case .rename(let item): NameSheet(title: "Renommer « \(item.name) »", initial: item.name, action: "Renommer", selectStem: !item.isFolder) { model.rename(item, to: $0) }
+                case .move(let items): MoveSheet(items: items)
+                case .share(let item): ShareSheet(item: item)
+                case .portal(let folder): PortalSheet(folder: folder)
+                case .versions(let item): VersionsSheet(item: item)
+                case .conflict(let c): ConflictSheet(model: model, nav: nav, conflict: c)
+                }
             }
-            }
-            .environment(model)
+            .environment(model).environment(nav)
         }
         .confirmationDialog("Supprimer définitivement \(nav.confirmPurge.count) élément(s) ?", isPresented: Binding(get: { !nav.confirmPurge.isEmpty }, set: { if !$0 { nav.confirmPurge = [] } })) {
             Button("Supprimer définitivement", role: .destructive) { let items = nav.confirmPurge; nav.confirmPurge = []; Task { await model.purge(items) } }
@@ -85,42 +98,69 @@ struct FinderEnableBanner: View {
     @AppStorage("finderBannerDismissed") private var dismissed = false
     var body: some View {
         if model.finderRegistered, !model.finderEnabled, !dismissed {
-            HStack(spacing: 12) {
-                Image(systemName: "folder.badge.questionmark").font(.title2).foregroundStyle(Color.accentColor)
+            HStack(spacing: SPDTheme.Space.md) {
+                Image(systemName: "folder.badge.questionmark").font(.title2).foregroundStyle(SPDTheme.brand)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Activez SP Drive dans le Finder").fontWeight(.semibold)
-                    Text("macOS demande votre accord : Réglages Système › Général › Ouverture et extensions › Fournisseurs de fichiers, puis activez « \(AppEnvironment.productName) ». D’ici là, vos fichiers restent accessibles dans cette fenêtre.").font(.callout).foregroundStyle(.secondary)
+                    Text("Activez SP Drive dans le Finder").font(SPDTheme.Typo.bodyStrong)
+                    Text("macOS demande votre accord : Réglages Système › Général › Ouverture et extensions › Fournisseurs de fichiers, puis activez « \(AppEnvironment.productName) ». D’ici là, vos fichiers restent accessibles dans cette fenêtre.").font(SPDTheme.Typo.callout).foregroundStyle(SPDTheme.textSecondary)
                 }
                 Spacer()
                 Button("Ouvrir les Réglages Système") { DriveDomain.shared.openSystemSettings() }.buttonStyle(.borderedProminent)
                 Button { dismissed = true } label: { Image(systemName: "xmark") }.buttonStyle(.plain).accessibilityLabel("Masquer")
             }
-            .padding(.horizontal, 16).padding(.vertical, 10).background(Color.accentColor.opacity(0.10))
-            .overlay(alignment: .top) { Divider() }
+            .padding(.horizontal, SPDTheme.Space.lg).padding(.vertical, 10).background(SPDTheme.brandWash)
+            .overlay(alignment: .top) { Rectangle().fill(SPDTheme.hairline).frame(height: 1) }
             .task { await model.watchFinderState() }
             .accessibilityIdentifier("finder-enable-banner")
         }
     }
 }
 
-/// Bottom of the sidebar: sync state and storage in one glance.
+/// Bottom of the sidebar: sync state and storage in one glance; a click opens the transfer centre.
 struct SidebarFooter: View {
-    @Environment(AppModel.self) private var model
+    let model: AppModel
+    let nav: Navigator
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Divider()
-            HStack(spacing: 6) {
-                SyncStatusIcon(status: model.status)
-                Text(SyncStatusText.title(model.status)).font(.callout).lineLimit(1)
-                Spacer()
+            Rectangle().fill(SPDTheme.hairline).frame(height: 1)
+            Button { nav.section = .transfers } label: {
+                HStack(spacing: 6) {
+                    SyncStatusIcon(status: model.status)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(SyncStatusText.title(model.status)).font(SPDTheme.Typo.callout).lineLimit(1)
+                        if model.status.transfers.speed > 1024 { Text(Fmt.speed(model.status.transfers.speed) + (model.secondsRemaining.map { " · " + Fmt.duration($0) } ?? "")).font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textTertiary).monospacedDigit() }
+                    }
+                    Spacer()
+                }.contentShape(Rectangle())
             }
+            .buttonStyle(.plain).help(SyncStatusText.detail(model.status))
             .accessibilityElement(children: .combine).accessibilityIdentifier("sync-status")
             if let q = model.quota, q.limit > 0 {
-                ProgressView(value: Double(q.used), total: Double(q.limit)).controlSize(.small).tint(Double(q.used) / Double(q.limit) > 0.9 ? .orange : .accentColor)
-                Text("\(Fmt.bytes(q.used)) sur \(Fmt.bytes(q.limit))").font(.caption).foregroundStyle(.secondary)
+                Button { nav.section = .storage } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        QuotaBar(used: q.used, limit: q.limit)
+                        Text("\(Fmt.bytes(q.free)) libres sur \(Fmt.bytes(q.limit))").font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textSecondary)
+                    }.contentShape(Rectangle())
+                }.buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 14).padding(.bottom, 10)
+    }
+}
+
+/// A slim storage meter; turns to the warning colour (with a symbol next to it where shown) above 90 %.
+struct QuotaBar: View {
+    let used: Int64, limit: Int64
+    var body: some View {
+        let f = limit > 0 ? min(1, Double(used) / Double(limit)) : 0
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Capsule().fill(SPDTheme.hairline)
+                Capsule().fill(f > 0.9 ? SPDTheme.warning : SPDTheme.brand).frame(width: max(f > 0 ? 4 : 0, g.size.width * f))
+            }
+        }
+        .frame(height: 4).spdMotion(.progress, value: used)
+        .accessibilityElement().accessibilityLabel("Stockage").accessibilityValue("\(Int(f * 100)) % utilisés")
     }
 }
 
@@ -136,6 +176,7 @@ enum SyncStatusText {
             let active = s.transfers.running + s.transfers.queued
             if active > 0 { return "\(active) transfert\(active > 1 ? "s" : "") en cours" }
             if s.pendingOperations > 0 { return "\(s.pendingOperations) opération(s) en attente" }
+            if s.openConflicts > 0 { return "\(s.openConflicts) conflit\(s.openConflicts > 1 ? "s" : "") à régler" }
             return "À jour"
         }
     }
@@ -144,6 +185,10 @@ enum SyncStatusText {
         if let d = s.lastSync { return "Dernière synchronisation \(Fmt.relative(d))" }
         return "Jamais synchronisé"
     }
+    /// How this Mac learns of changes made elsewhere.
+    static func channel(_ s: SyncStatus) -> String {
+        switch s.events { case .stream: "Changements reçus en direct"; case .polling: "Vérification toutes les 30 s"; case .off: "Écoute arrêtée" }
+    }
 }
 struct SyncStatusIcon: View {
     let status: SyncStatus
@@ -151,11 +196,11 @@ struct SyncStatusIcon: View {
         let busy = status.phase == .syncing || status.transfers.running > 0
         let (symbol, color): (String, Color) = {
             switch status.phase {
-            case .offline: ("icloud.slash", .secondary); case .paused: ("pause.circle", .secondary); case .needsLogin: ("person.crop.circle.badge.exclamationmark", .orange)
-            case .error: ("exclamationmark.icloud", .orange); case .syncing: ("arrow.triangle.2.circlepath", .accentColor)
-            case .idle: status.transfers.running > 0 ? ("arrow.triangle.2.circlepath", .accentColor) : status.openConflicts > 0 ? ("exclamationmark.triangle", .orange) : ("checkmark.icloud", .green)
+            case .offline: ("icloud.slash", SPDTheme.textSecondary); case .paused: ("pause.circle", SPDTheme.textSecondary); case .needsLogin: ("person.crop.circle.badge.exclamationmark", SPDTheme.warning)
+            case .error: ("exclamationmark.icloud", SPDTheme.warning); case .syncing: ("arrow.triangle.2.circlepath", SPDTheme.brand)
+            case .idle: status.transfers.running > 0 ? ("arrow.triangle.2.circlepath", SPDTheme.brand) : status.openConflicts > 0 ? ("exclamationmark.triangle", SPDTheme.warning) : ("checkmark.icloud", SPDTheme.positive)
             }
         }()
-        Image(systemName: symbol).foregroundStyle(color).symbolEffect(.pulse, isActive: busy).accessibilityHidden(true)
+        Image(systemName: symbol).foregroundStyle(color).symbolEffect(.pulse, isActive: busy && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion).accessibilityHidden(true)
     }
 }

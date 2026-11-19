@@ -1,6 +1,7 @@
 // Author: Simon-Pierre Boucher — contact@spboucher.ai
 // File: FileProviderExtension/FileProviderExtension.swift
 // Description: SP Drive in the Finder: a replicated File Provider. The system keeps the local replica and calls this class to describe items, fetch contents, and push what was created, edited, renamed, moved, trashed or deleted on this Mac. Content pushed here is always derived from a named server version: a different current version becomes a conflict copy, never an overwrite.
+import AppKit
 import FileProvider
 import Foundation
 import OSLog
@@ -8,7 +9,7 @@ import SPDriveCore
 import SPDriveSync
 import UniformTypeIdentifiers
 
-final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, NSFileProviderThumbnailing, @unchecked Sendable {
+final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, NSFileProviderThumbnailing, NSFileProviderCustomAction, @unchecked Sendable {
     let domain: NSFileProviderDomain
     let manager: NSFileProviderManager?
     private let lock = NSLock()
@@ -223,6 +224,51 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
             try? s.store.setMeta("fp_pending", String(ids.count))
             AppEnvironment.postChanged(); done.value()
         }.start()
+    }
+
+    // MARK: Context-menu actions (declared in Info.plist, `NSExtensionFileProviderActions`)
+    enum Action: String {
+        case copyLink, keepOffline, releaseOffline, showVersions
+        static let prefix = "\(AppEnvironment.appBundleID).fileprovider.action."
+        init?(_ id: NSFileProviderExtensionActionIdentifier) { guard id.rawValue.hasPrefix(Action.prefix) else { return nil }; self.init(rawValue: String(id.rawValue.dropFirst(Action.prefix.count))) }
+    }
+    func performAction(identifier actionIdentifier: NSFileProviderExtensionActionIdentifier, onItemsWithIdentifiers itemIdentifiers: [NSFileProviderItemIdentifier], completionHandler: @escaping (Error?) -> Void) -> Progress {
+        let cb = SendableBox(completionHandler)
+        guard let action = Action(actionIdentifier) else { completionHandler(NSError(domain: NSCocoaErrorDomain, code: NSFeatureUnsupportedError)); return Progress() }
+        return run(units: Int64(max(itemIdentifiers.count, 1)), { s, progress in
+            let root = try await s.requireRoot()
+            let ids = itemIdentifiers.map { FileProviderItem.serverID($0, rootID: root) }
+            switch action {
+            case .copyLink:
+                // a new link to this one item (read and download), its address put on the clipboard; managed afterwards in the app
+                guard let id = ids.first else { break }
+                let item = try await s.fresh(id)
+                let made = try await s.api.createShare(for: item, settings: ShareSettings(label: "Créé depuis le Finder"))
+                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(made.url.absoluteString, forType: .string)
+                let known = s.sharedIDs().union([id])
+                try? s.store.setMeta("shared_ids", known.sorted().joined(separator: ",")); s.forgetSharedCache()
+                try? s.store.touch([id])
+                progress.completedUnitCount = 1
+            case .keepOffline:
+                for id in ids { try s.store.setPinned(id, true); try? s.store.touch([id]); progress.completedUnitCount += 1 } // the content policy then makes the system download and keep them
+            case .releaseOffline:
+                for id in ids {
+                    try s.store.setPinned(id, false); try? s.store.touch([id])
+                    try? await self.manager?.evictItem(identifier: NSFileProviderItemIdentifier(id)) // refused by the system for unsent edits: they stay
+                    progress.completedUnitCount += 1
+                }
+            case .showVersions:
+                guard let id = ids.first else { break }
+                // the app shows it: a note in the shared database, a signal, and the app is opened if it was not running
+                try s.store.setMeta("ui_request", "versions|\(id)|\(Date().timeIntervalSince1970)")
+                let app = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                if app.pathExtension == "app" { let c = NSWorkspace.OpenConfiguration(); c.activates = true; _ = try? await NSWorkspace.shared.openApplication(at: app, configuration: c) }
+            }
+            self.manager?.signalEnumerator(for: .workingSet) { _ in }
+            self.done(s)
+            self.log.notice("custom action \(action.rawValue, privacy: .public) on \(ids.count) item(s)")
+            cb.value(nil)
+        }, failure: { cb.value($0) })
     }
 
     // MARK: Thumbnails

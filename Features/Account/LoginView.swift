@@ -10,12 +10,12 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color.accentColor.opacity(0.16), .clear], startPoint: .top, endPoint: .center).ignoresSafeArea()
+            SPDTheme.canvas.ignoresSafeArea()
             VStack(spacing: 22) {
                 DriveMark()
                 VStack(spacing: 6) {
-                    Text(AppEnvironment.productName).font(.system(size: 34, weight: .bold, design: .rounded))
-                    Text("Vos fichiers MacLustr, dans le Finder et hors ligne.").font(.title3).foregroundStyle(.secondary)
+                    Text(AppEnvironment.productName).font(.system(size: 34, weight: .semibold, design: .serif))
+                    Text("Vos fichiers MacLustr, dans le Finder et hors ligne.").font(.title3).foregroundStyle(SPDTheme.textSecondary)
                 }
                 Group {
                     if let link = model.link { linking(link) } else { actions }
@@ -61,7 +61,7 @@ struct LockedView: View {
     var body: some View {
         VStack(spacing: 18) {
             DriveMark(size: 64)
-            Text("SP Drive est verrouillé").font(.title2.weight(.semibold))
+            Text("SP Drive est verrouillé").font(SPDTheme.Typo.display)
             Button { Task { await model.unlock() } } label: { Label("Déverrouiller", systemImage: "touchid") }.buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity).background(.ultraThickMaterial)

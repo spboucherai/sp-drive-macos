@@ -93,7 +93,7 @@ public struct ConflictResolver: Sendable {
             result = updated
         }
         try await api.trash(Selection(fileIds: [copyID]))
-        try? store.upsert([result])
+        _ = try? store.upsert([result])
         try store.db.run("UPDATE conflicts SET resolved_at = ?, resolution = ? WHERE id = ?", [.double(Date().timeIntervalSince1970), .text("keepMineVersion"), .text(c.id)])
         return result
     }
