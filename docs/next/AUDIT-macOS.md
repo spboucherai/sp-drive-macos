@@ -68,7 +68,8 @@ How to read "verified": **T** = Swift package test against the real local backen
 
 | Measure | Value | Comparable to baseline? |
 |---|---|---|
-| Cold launch → first window | **183 ms** median of 5 (164–193), signed in | Not strictly: baseline was taken signed out. See the signed-out figure in the final report of the phase |
+| Cold launch → first window, signed out | **202 ms** median of 5 | Yes: baseline 212 ms in the same state — no measurable change |
+| Cold launch → first window, signed in | **183 ms** median of 5 (164–193) | No baseline in that state |
 | Memory at idle | **182 MB** `phys_footprint` 15 s after showing a 1,000-item folder ten times (peak 372 MB during that) | Roughly: different moment of the session. No regression seen; not a controlled comparison |
 | Showing a 1,000-item folder (navigation → frame committed) | list **114 ms** median of 5 (104–130); grid **87 ms** (76–94) | New measure (`-spdPerf YES`); 1.0 had no probe |
 | Mirror listing of 1,000 items | 5.3 ms | Same code |
