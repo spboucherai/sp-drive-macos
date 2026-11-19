@@ -68,7 +68,7 @@ F = scénario par le Finder (`Scripts/finder-scenario.sh`). **Non vérifié** es
 
 # SP Drive 2.0 — branche `next`, état au 2026-11-19
 
-Même légende, plus : **N** = tests du paquet `SPDriveNext` contre le backend 2.0 local, **S** = capture de la fenêtre
+Même légende, plus : **N** = tests du paquet `SPDriveNext` contre le backend 2.0 local, **É** = contrôle « à l'écran » de l'auto-vérification (la feuille ou la fenêtre est réellement présentée et son propre bouton est pressé par l'API d'accessibilité du système, sans pointeur), **S** = capture de la fenêtre
 (`docs/next/shots/`). « API » signifie que l'app appelle la même fonction que celle vérifiée, sans que le geste à l'écran
 ait été fait. Le fournisseur d'IA des essais est **faux** (`Scripts/fake-ai.mjs`) : aucun vrai modèle n'a été exercé.
 
@@ -79,18 +79,18 @@ ait été fait. Le fournisseur d'IA des essais est **faux** (`Scripts/fake-ai.mj
 | Flux d'événements (SSE) → moteur, repli sondage 30 s, reconnexion | oui | T (changement poussé en 0,1 s ; flux tué → sondage → reconnexion), A (0,5 s) |
 | Recherche noms + contenu, passages surlignés | oui (champ de la barre d'outils, Mon Drive) | N, A, S |
 | Recherche par le sens | oui (bascule, masquée sans modèle) | N (disponible, résultats) ; écran : S de la tournée |
-| SP Drive AI : demander à un document / dossier / Drive, flux, sources numérotées cliquables, choix du modèle (concepteur ≠ fournisseur), états « non configuré » et « rien trouvé » | oui (feuille, fenêtre ⌥⌘A, inspecteur) | N, A, S — **faux fournisseur**. Fenêtre « Demander à mon Drive » et clic sur une citation : non vérifiés |
-| Consentement aux fournisseurs externes | oui (Paramètres › Compte) | N (drapeau du compte) ; interrupteur à l'écran : non vérifié |
-| Suggestions de rangement (`ai/suggest`) | appel dans le paquet, **pas d'écran** | N (décodage ; le faux fournisseur ne produit pas de vraies suggestions) |
-| Collections intelligentes : liste, résultats, éditeur de règle avec aperçu | oui | N, A, S ; enregistrement depuis l'éditeur : API |
+| SP Drive AI : demander à un document / dossier / Drive, flux, sources numérotées cliquables, choix du modèle (concepteur ≠ fournisseur), états « non configuré » et « rien trouvé » | oui (feuille, fenêtre ⌥⌘A, inspecteur) | N, A, S — **faux fournisseur**. À l'écran (É) : citation pressée → fichier affiché ; fenêtre « Demander à mon Drive » ouverte |
+| Consentement aux fournisseurs externes | oui (Paramètres › Compte) | N ; É : l'interrupteur pressé change le drapeau du compte sur le serveur, puis le rétablit |
+| Suggestions de rangement (`ai/suggest`) | oui : liste à relire, « Appliquer » ligne par ligne (renommer, déplacer) ; les étiquettes proposées sont montrées mais se posent depuis le site | N ; É : rien ne change à l'affichage de la proposition, « Appliquer » renomme sur le serveur — **faux fournisseur** |
+| Collections intelligentes : liste, résultats, éditeur de règle avec aperçu | oui | N, A, S ; É : bouton Enregistrer de l'éditeur |
 | Activité : fichier (inspecteur), dossier, compte (paginé) | oui | N, A, S |
 | Versions : frise avec auteur, restauration, comparaison (texte ligne à ligne ; images et PDF côte à côte ; énoncé sinon) | oui | N, A, S (texte). **Images et PDF côte à côte : non regardés** |
-| Centre de stockage : espace, types, dossiers avec exploration, croissance 90 j, plus gros fichiers, doublons exacts et images ressemblantes ; aucune suppression automatique | oui | N, A, S ; exploration au clic et bouton Corbeille : API |
-| Membres et rôles d'un dossier, nom d'espace de travail, activité du dossier | oui | N, A, S |
+| Centre de stockage : espace, types, dossiers avec exploration, croissance 90 j, plus gros fichiers, doublons exacts et images ressemblantes ; aucune suppression automatique | oui | N, A, S ; É : exploration d'un dossier en pressant sa barre. Bouton Corbeille d'un doublon : non pressé |
+| Membres et rôles d'un dossier (ajout par adresse courriel seulement, D18), nom d'espace de travail, activité du dossier | oui | N, A, S |
 | « Partagés avec moi » : parcourir, aperçu, téléchargement, et selon le rôle création / renommage / envoi / corbeille ; dépôt seul | oui | N (toute la famille de routes, deux comptes), A (parcourir + envoi éditeur, 403 puis envoi déposant), S (liste). Gestes à l'écran dans un dossier partagé : non vérifiés |
-| Code QR d'un lien (Core Image, local) | oui | A (relu par un détecteur) ; dans la feuille : non regardé |
-| Appareils connectés (plateforme, version de l'app, dernière activité, révocation) | oui (Paramètres › Compte) | N, A ; écran : non regardé |
-| Portails de dépôt : tous les champs de la demande (instructions, message de fin, en-tête, champs demandés, consentement, plafonds) | oui | corps accepté par le serveur (essai direct) ; création depuis la feuille : non vérifiée |
+| Code QR d'un lien (Core Image, local) | oui | A (relu par un détecteur) ; É : lien créé par le bouton de la feuille, code QR affiché |
+| Appareils connectés (plateforme, version de l'app, dernière activité, révocation) | oui (Paramètres › Compte) | N, A ; É : liste affichée dans les Paramètres. Révocation au clic : non pressée |
+| Portails de dépôt : tous les champs de la demande (instructions, message de fin, en-tête, champs demandés, consentement, plafonds) | oui | É : portail créé sur le serveur par le bouton de la feuille |
 | Administration (lecture seule, administrateurs) | oui | N, A, S |
 | Dossiers partagés dans le Finder | non (contrat : parcourus dans l'app) | — |
 | Localisation anglaise | non | — |

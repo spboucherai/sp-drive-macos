@@ -248,3 +248,38 @@ the extended sheet (the request body was checked against the server directly), a
    and the two `.dev` profiles covered every Debug build of the day.
 5. `dist/SP Drive.app` is now the **unnotarized 2.0.0 (2)** build (the pipeline replaces it); `dist/SPDrive-1.0.0.dmg`
    is untouched.
+
+## 8. Final pass (2026-11-19, evening) — backend 0073557, the commit live in production
+
+### Alignment with API-NEXT D15–D23
+| Deviation | Client |
+|---|---|
+| D16 `target.name` in activity | decoded (`ActivityEvent.Target.name`), shown in the account and folder feeds |
+| D17 streams closed on shutdown | nothing to change (the idle watchdog stays as a second line) |
+| D18 members by e-mail only | `NextClient.addMember` sends the address only; `userID` stays in the signature for source compatibility and is ignored (a call without `email` throws `invalid_request` locally). New convenience `addMember(to:email:as:workspaceName:)`. The members sheet no longer resolves first |
+| D19 reduced member feed | test asserts no account identifier, the seven actions only, present names; the row copes with a rename without its former name |
+| D20 depositor: root only, sent name returned | test (403 elsewhere; same name twice → two stored files, the sent name answered); the depositor screen only ever targets the granted folder |
+| D21 `too_many_pending_uploads` | worded; not provoked |
+| D22 / D23 `503 too_many_streams`, `503 busy` | `NextError.isBusy`, `retryAfterSeconds`; the listener already backs off and polls; the search screen says the model is busy. Not provoked |
+
+### New in this pass
+- **AI organisation suggestions** (`Features/Next/SuggestionsSheet.swift`): a review list per file (name, folder, tags, category, reason). Rename and move are applied one line at a time with the app's journaled actions; tags are shown but not applied (the macOS app has no tag support). Entry: context menu and palette.
+- **On-screen checks**: the self-test now presents the real sheets and windows and presses their own controls through the system accessibility API addressed to its own process (no pointer, no other app): citation → file revealed; "Demander à mon Drive" window; Settings › Compte devices list; consent switch (server flag flips and is restored); rule editor Save; storage drill-down; share link created + QR shown; deposit portal created; a suggestion applied. Pictures: `shots/U-onscreen-*.png`.
+- **Download bandwidth cap** now holds on delivery (the delegate queue is held while the bucket refills). Before, a body already buffered by the loader escaped the cap: one run downloaded 6 MiB "capped at 1 MiB/s" in 0.63 s. Now 5.0–5.1 s in three runs. §6's first weakness is closed.
+- **Finder location and account change**: entering as a different account without a sign-out now removes and re-adds the location (see below).
+
+### The 18 / 20 self-test seen once in phase 2
+Attempts to reproduce: 2 runs from a fresh device link (75 / 75 both), then 2 runs in the exact condition of the failure —
+the test backend recreated (so a **new account**) under an app that was never signed out — then 2 more fresh-link runs on the final code (75 / 75 both).
+- **"offline pin" failure: reproduced** in that condition (1 of the 2 runs where it could be read; the other run hung later on an unbounded accessibility walk, since bounded). Cause: the Finder location still held the replica of the *previous* account while the app opened the new account's mirror, so the system was reconciling two different trees and did not materialise the pinned file in 40 s. Fix: the location is recreated when the account changes; the same condition then gave 75 / 75. In production this needed a second person signing in on the same Mac after a closed session.
+- **"a main window exists" failure: not reproduced** in six runs. The check now waits up to 10 s for the window and reports the app's window list if it fails again. Cause not established.
+
+### Flaky tests found and settled
+- `testRevokedSession…` read `pendingOperations` from the status snapshot and saw 0 once in about six full runs (alone: 4 / 4 passes). It now reads the journal itself. Why the snapshot was 0 that once is not established.
+- `testStorageOverview…` assumed its small folder was among the 50 largest folders of an account that grows with every test run; that assertion was removed.
+
+### Totals on the final code
+`CoreTests` 61 / 61 and `NextTests` 14 / 14 (two consecutive full runs) · self-test 75 / 75 twice from fresh links · tour 34 screens, no crash · Finder scenario 22 / 22 · Release 2.0.0 (3): see TEST_REPORT.
+
+### Still not verified
+A real model (every AI check uses the fake provider) · image / PDF side-by-side comparison · gestures inside a shared folder on screen · per-file trash of a duplicate and session revocation by click · Increase Contrast, Reduce Motion, contrast ratios · real pointer drags, Finder context-menu actions, the status-item popover · English localisation (none).

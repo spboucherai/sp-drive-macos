@@ -21,7 +21,7 @@ Finder (File Provider répliqué), une application SwiftUI, un moteur de synchro
 **Auteur : [Simon-Pierre Boucher](https://www.spboucher.ai)**
 
 [![serveur](https://img.shields.io/website?url=https%3A%2F%2Fdrive.spboucher.ai&label=serveur%20drive.spboucher.ai&style=for-the-badge&up_message=en%20ligne&down_message=hors%20ligne)](https://drive.spboucher.ai)
-![version](https://img.shields.io/badge/version-2.0.0%20(2)%20·%20branche%20next-6a3df0?style=for-the-badge)
+![version](https://img.shields.io/badge/version-2.0.0%20(3)%20·%20branche%20next-6a3df0?style=for-the-badge)
 ![plateforme](https://img.shields.io/badge/plateforme-macOS%2014%2B%20%C2%B7%20universelle-000000?style=for-the-badge&logo=apple&logoColor=white)
 ![licence](https://img.shields.io/badge/licence-tous%20droits%20r%C3%A9serv%C3%A9s-lightgrey?style=for-the-badge)
 ![author](https://img.shields.io/badge/author-Simon--Pierre%20Boucher-0A66C2?style=for-the-badge)
@@ -95,7 +95,7 @@ Finder (File Provider répliqué), une application SwiftUI, un moteur de synchro
 ## 🚀 SP Drive 2.0 — état de la branche `next` (2026-11-19)
 
 > **Non livrée.** La version distribuée et notarisée reste la 1.0.0 (`main`, étiquette `v1.0.0`). La branche `next` porte la
-> 2.0.0 (2) : construite en Release, signée Developer ID et vérifiée (`Scripts/verify-release.sh` : 32 contrôles, 0 échec),
+> 2.0.0 (3) : construite en Release, signée Developer ID et vérifiée (`Scripts/verify-release.sh` : 32 contrôles, 0 échec),
 > **ni notarisée, ni installée, ni étiquetée**. Le reste de ce README décrit la 1.0 et reste vrai pour ce qu'il couvre ;
 > l'état exact de la 2.0, fonction par fonction, est dans [`docs/next/AUDIT-macOS.md`](docs/next/AUDIT-macOS.md).
 
@@ -106,15 +106,17 @@ Finder (File Provider répliqué), une application SwiftUI, un moteur de synchro
 | Synchronisation | flux d'événements du serveur (SSE) branché sur le moteur, repli sur un sondage de 30 s, reprise après coupure ; concurrence adaptative 1–6, priorités, reprise après `SIGKILL`, économie d'énergie |
 | Interface | système de design v2 (`docs/next/DESIGN-SYSTEM-V2.md`), grille à vraies vignettes, inspecteur, palette de commandes ⌘K, plusieurs fenêtres, Coup d'œil, glisser-déposer entrant et sortant, centre de transferts, Command Center de la barre de menus |
 | Recherche | noms **et contenu** des documents (passages surlignés), recherche par le sens quand le serveur a son modèle |
-| SP Drive AI | questions à un document, un dossier ou tout le Drive ; réponse en flux avec sources numérotées ; choix du modèle. **Aucun vrai modèle n'a été exercé** : les essais utilisent un faux fournisseur local |
+| SP Drive AI | questions à un document, un dossier ou tout le Drive ; réponse en flux avec sources numérotées ; choix du modèle ; suggestions de rangement à confirmer ligne par ligne. **Aucun vrai modèle n'a été exercé** : les essais utilisent un faux fournisseur local |
 | Organisation | collections intelligentes (règles), activité, versions en frise avec comparaison, centre de stockage (types, dossiers, croissance, doublons) |
 | Partage | membres et rôles sur un dossier, espaces de travail, « Partagés avec moi », code QR des liens, portails de dépôt complets |
 | Compte | appareils connectés (plateforme, version), consentement aux fournisseurs d'IA externes, vue d'administration pour les administrateurs |
 | Finder | état « partagé », pastilles, actions du menu contextuel (déclarées et évaluées par le système ; **exécution non vérifiée**) |
 | Langue | français seulement (pas de localisation anglaise, en 1.0 comme en 2.0) |
 
-Essais du 2026-11-19 (variante de test, backend 2.0 local) : paquets Swift **75 / 75** (61 + 14 pour `SPDriveNext`),
-auto-vérification de l'app **65 / 65**, scénario Finder **22 / 22**, tournée de 36 écrans sans plantage. Captures de la
+Essais du 2026-11-19 sur le code final (variante de test, backend 2.0 local @ 0073557, celui de la production) : paquets
+Swift **75 / 75** (61 + 14 pour `SPDriveNext`), auto-vérification de l'app **75 / 75** deux fois de suite depuis une
+liaison d'appareil neuve (dont 11 contrôles « à l'écran » qui pressent les vrais boutons par l'API d'accessibilité),
+scénario Finder **22 / 22**, tournée de 34 écrans sans plantage. Captures de la
 fenêtre : [`docs/next/shots/`](docs/next/shots/).
 
 ## 🎯 Aperçu
