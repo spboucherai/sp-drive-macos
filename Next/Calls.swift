@@ -51,7 +51,8 @@ extension NextClient {
                                          "minSize": p.minSize.map(String.init), "maxSize": p.maxSize.map(String.init), "sort": p.sort, "dir": p.dir])
     }
     public func search(_ q: String, in scope: SearchScope = .all) async throws -> SearchResults { try await search(SearchParameters(q: q, scope: scope)) }
-    /// Nearest passages by meaning. `available == false` when the server has no embedding model right now.
+    /// Nearest passages by meaning. `available == false` when the server has no embedding model right now; the server
+    /// may also answer `503 busy` (thrown as `NextError`, see `retryAfterSeconds`) when its local model has a queue.
     public func semanticSearch(_ q: String, limit: Int = 10) async throws -> SemanticResults { try await get("/search/semantic", query: ["q": q, "limit": String(limit)]) }
     public func fileText(_ fileID: String) async throws -> FileTextStatus { try await get("/files/\(fileID)/text") }
     public func indexStatus() async throws -> IndexStatus { try await get("/index/status") }
@@ -94,9 +95,17 @@ extension NextClient {
     /// Finds an account by its exact e-mail address (rate-limited; 404 for an unknown address or one's own).
     public func resolveUser(email: String) async throws -> ResolvedUser { struct B: Encodable { var email: String }; return try await send("POST", "/collab/resolve", body: B(email: email)) }
     public func members(of folderID: String) async throws -> FolderMembers { try await get("/folders/\(folderID)/members") }
+    /// Gives an account access to a folder, **by its e-mail address** (API-NEXT D18: the server no longer accepts an
+    /// account identifier here). `userID` is kept in the signature for source compatibility and is ignored: a call
+    /// without `email` throws `invalid_request` without reaching the server.
     public func addMember(to folderID: String, userID: String? = nil, email: String? = nil, role: GrantRole, workspaceName: String? = nil) async throws -> FolderMember {
-        struct B: Encodable { var userId: String?; var email: String?; var role: GrantRole; var workspaceName: String? }
-        return try await send("POST", "/folders/\(folderID)/members", body: B(userId: userID, email: email, role: role, workspaceName: workspaceName))
+        guard let email, !email.isEmpty else { throw NextError.server(status: 400, code: "invalid_request", message: "an e-mail address is required to add a member", extra: [:]) }
+        struct B: Encodable { var email: String; var role: GrantRole; var workspaceName: String? }
+        return try await send("POST", "/folders/\(folderID)/members", body: B(email: email, role: role, workspaceName: workspaceName))
+    }
+    /// Gives an account access to a folder by its exact e-mail address.
+    public func addMember(to folderID: String, email: String, as role: GrantRole, workspaceName: String? = nil) async throws -> FolderMember {
+        try await addMember(to: folderID, userID: nil, email: email, role: role, workspaceName: workspaceName)
     }
     public func updateMember(of folderID: String, userID: String, role: GrantRole) async throws -> FolderMember {
         struct B: Encodable { var role: GrantRole }
@@ -113,6 +122,8 @@ extension NextClient {
 
     // MARK: §6.2 Private sharing — the member's side
     public func sharedWithMe() async throws -> [SharedGrant] { try await get("/shared-with-me") }
+    /// The reduced activity feed a member may read (API-NEXT D19): a few actions, since the grant, live items only,
+    /// people by display name (`actor.userId` is nil), almost no `meta`.
     /// Lists a folder of a grant (nil = the granted folder). Viewer and editor; an uploader gets 403 (`isForbidden`).
     public func sharedChildren(grant: String, folderID: String? = nil) async throws -> SharedListing { try await get("/shared/\(grant)/children", query: ["folderId": folderID]) }
     public func sharedFile(grant: String, fileID: String) async throws -> SharedFileDetails { try await get("/shared/\(grant)/files/\(fileID)") }

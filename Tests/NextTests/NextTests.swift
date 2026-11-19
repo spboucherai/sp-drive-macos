@@ -218,9 +218,11 @@ final class AITests: NextCase {
         catch { XCTAssertTrue(["ai_external_disabled", "provider_not_configured"].contains((error as? NextError)?.code ?? ""), "\(error)") }
         do { for try await _ in owner.aiAsk(AIAskRequest(scope: .files([contract.id]), question: "q")) { }; } catch { XCTFail("\(error)") }
         do { for try await _ in member.aiAsk(AIAskRequest(scope: .files([contract.id]), question: "q")) {}; XCTFail("a foreign file must be refused") } catch { XCTAssertEqual((error as? NextError)?.status, 404) }
-        // suggestions: the fake provider answers an empty list (or something the server rejects as a bad answer); the call and its decoding are what is checked
-        do { let s = try await owner.aiSuggest(fileIDs: [contract.id]); XCTAssertEqual(s.provider, "maclustr"); XCTAssertTrue(s.suggestions.allSatisfy { $0.fileId == contract.id }) }
-        catch let e as NextError { XCTAssertEqual(e.code, "ai_bad_answer") }
+        // suggestions: the fake provider answers a scripted proposal; the server validates it and applies nothing
+        let s = try await owner.aiSuggest(fileIDs: [contract.id])
+        XCTAssertEqual(s.provider, "maclustr"); XCTAssertEqual(s.suggestions.map(\.fileId), [contract.id])
+        XCTAssertEqual(s.suggestions.first?.name, "Classé – Contrat chalet.md"); XCTAssertEqual(s.suggestions.first?.tags, ["Factice"]); XCTAssertEqual(s.suggestions.first?.category, "Test")
+        let unchanged = try await owner.list(folder.id).files.first { $0.id == contract.id }; XCTAssertEqual(unchanged?.name, "Contrat chalet.md") // a proposal applies nothing
     }
 }
 
@@ -233,7 +235,8 @@ final class CollabTests: NextCase {
         // owner side
         let who = try await owner.resolveUser(email: email); XCTAssertFalse(who.userId.isEmpty)
         await expect("not_found", status: 404) { _ = try await self.owner.resolveUser(email: "personne@example.test") }
-        let added = try await owner.addMember(to: folder.id, userID: who.userId, role: .viewer, workspaceName: "Équipe Projet")
+        await expect("invalid_request", status: 400) { _ = try await self.owner.addMember(to: self.folder.id, userID: who.userId, role: .viewer) } // D18: by address only
+        let added = try await owner.addMember(to: folder.id, email: email, as: .viewer, workspaceName: "Équipe Projet")
         XCTAssertEqual(added.role, .viewer)
         await expect("already_member", status: 409) { _ = try await self.owner.addMember(to: self.folder.id, email: email, role: .editor) }
         let listed = try await owner.members(of: folder.id)
@@ -271,13 +274,21 @@ final class CollabTests: NextCase {
         let ownerSees = try await owner.list(made.id); XCTAssertEqual(Set(ownerSees.files.map(\.name)), ["apport.bin", "repris.bin"]) // it all landed in the owner's tree
         try await member.sharedTrash(grant: g.grantId, fileIDs: [sent.file.id])
         let after = try await member.sharedChildren(grant: g.grantId, folderID: made.id); XCTAssertEqual(after.files.map(\.name), ["repris.bin"])
+        // the member's feed is the reduced one (D19): no account identifiers, present names, a short list of actions
         let feed = try await member.sharedActivity(grant: g.grantId); XCTAssertFalse(feed.events.isEmpty)
+        XCTAssertTrue(feed.events.allSatisfy { $0.actor.userId == nil }); XCTAssertTrue(feed.events.contains { $0.actor.me == true })
+        XCTAssertTrue(feed.events.allSatisfy { ["file.uploaded", "file.version_added", "file.version_restored", "file.renamed", "folder.created", "folder.renamed", "items.moved"].contains($0.action) }, feed.events.map(\.action).joined(separator: ","))
+        XCTAssertTrue(feed.events.contains { $0.action == "file.renamed" && $0.target?.name == "Charte v2.txt" && ($0.meta ?? [:]).isEmpty })
         let ownerFeed = try await owner.folderActivity(folder.id)
         XCTAssertTrue(ownerFeed.events.contains { $0.viaGrant && $0.actor.me == false }); XCTAssertTrue(ownerFeed.events.contains { $0.action == "collab.member_added" })
         // uploader: sends files in, lists nothing
         _ = try await owner.updateMember(of: folder.id, userID: who.userId, role: .uploader)
         do { _ = try await member.sharedChildren(grant: g.grantId); XCTFail("an uploader lists nothing") } catch let e as NextError { XCTAssertTrue(e.isForbidden) }
         let blind = try await member.uploadShared(grant: g.grantId, file: local, name: "dépôt.bin"); XCTAssertEqual(blind.file.name, "dépôt.bin"); XCTAssertEqual(blind.file.size, 300_000)
+        // D20: the same name again is stored under another name, but the depositor is told the name it sent; and it may only aim at the granted folder
+        let again = try await member.uploadShared(grant: g.grantId, file: local, name: "dépôt.bin"); XCTAssertEqual(again.file.name, "dépôt.bin"); XCTAssertNotEqual(again.file.id, blind.file.id)
+        let stored = try await owner.list(folder.id).files.map(\.name).filter { $0.hasPrefix("dépôt") }; XCTAssertEqual(stored.count, 2); XCTAssertEqual(Set(stored).count, 2)
+        do { _ = try await member.uploadShared(grant: g.grantId, file: local, folderID: made.id, name: "ailleurs.bin"); XCTFail("an uploader may only aim at the granted folder") } catch let e as NextError { XCTAssertTrue(e.isForbidden, "\(e)") }
         let history = try await member.uploadHistory(); XCTAssertTrue(history.contains { $0.grantId == g.grantId && $0.status == "done" })
         // workspace name and revocation
         let unnamed = try await owner.setWorkspaceName(of: folder.id, nil); XCTAssertNil(unnamed.workspaceName)
@@ -312,6 +323,7 @@ final class InsightTests: NextCase {
         let feed = try await owner.fileActivity(f.id)
         XCTAssertEqual(feed.events.map(\.action), ["file.renamed", "file.uploaded"]) // newest first
         XCTAssertEqual(feed.events[0].meta?["from"]?.string, "journal.txt"); XCTAssertEqual(feed.events[0].actor.me, true); XCTAssertEqual(feed.events[1].target?.id, f.id)
+        XCTAssertEqual(feed.events[0].target?.name, "journal renommé.txt") // D16: the present name
         let page1 = try await owner.accountActivity(limit: 1); XCTAssertEqual(page1.events.count, 1); XCTAssertTrue(page1.more)
         let page2 = try await owner.accountActivity(before: page1.events[0].id, limit: 1); XCTAssertNotEqual(page2.events.first?.id, page1.events[0].id)
         await expect("not_found", status: 404) { _ = try await self.member.fileActivity(f.id) }

@@ -13,7 +13,16 @@ http.createServer((req, res) => {
     const text = (body.messages ?? []).map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
     if (/FAKE-AUTH-ERROR/.test(text)) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: { message: 'bad key' } })); }
     const m = /\[1\][^\n]*\n([^\n]{1,90})/.exec(text);
-    const answer = `Réponse de test (aucun vrai modèle) : « ${m ? m[1].trim() : 'passage introuvable'} » [1].`;
+    let answer = `Réponse de test (aucun vrai modèle) : « ${m ? m[1].trim() : 'passage introuvable'} » [1].`;
+    // an organisation request (ai/suggest) carries a JSON payload listing files, folders and existing tags: answer a scripted proposal
+    try {
+      const last = (body.messages ?? []).filter((x) => x.role === 'user').pop()?.content;
+      const payload = JSON.parse(typeof last === 'string' ? last : '');
+      if (Array.isArray(payload.files)) {
+        const folder = (payload.folders ?? [])[0];
+        answer = JSON.stringify({ suggestions: payload.files.map((f) => ({ fileId: f.fileId, name: `Classé – ${f.name}`, tags: ['Factice'], ...(folder ? { folderId: folder.id } : {}), category: 'Test', reason: 'Proposition du faux fournisseur (aucun vrai modèle).' })) });
+      }
+    } catch { /* a question, not a payload */ }
     if (body.stream === false) { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: '{"suggestions":[]}' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 3 } })); }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const words = answer.match(/\S+\s*/g) ?? [];

@@ -319,7 +319,8 @@ public struct CollectionItems: Codable, Sendable { public var collection: SmartC
 // MARK: §7.2 Activity
 public struct ActivityEvent: Codable, Sendable, Identifiable, Hashable {
     public struct Actor: Codable, Sendable, Hashable { public var kind: String; public var userId: String?; public var displayName: String?; public var me: Bool? }
-    public struct Target: Codable, Sendable, Hashable { public var type: String; public var id: String? }
+    /// `name`: the present name of a file or folder that still exists (nil once purged, for the root, and for other target types).
+    public struct Target: Codable, Sendable, Hashable { public var type: String; public var id: String?; public var name: String? }
     public var id: String; public var at: Date; public var action: String; public var actor: Actor; public var target: Target?; public var meta: [String: NextJSON]?
     /// Done by a member through a grant.
     public var viaGrant: Bool { meta?["via"]?.string == "grant" }

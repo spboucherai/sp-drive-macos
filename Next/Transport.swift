@@ -52,6 +52,10 @@ public enum NextError: Error, Sendable, Equatable, LocalizedError {
     public var isNotFound: Bool { status == 404 }
     /// A live grant whose role is too weak for the action (API-NEXT D1): grey the action out, the folder still exists.
     public var isForbidden: Bool { status == 403 }
+    /// Seconds the server asks to wait (`retryAfterS` of `rate_limited`, `busy`…), when it says.
+    public var retryAfterSeconds: Double? { extra["retryAfterS"]?.double }
+    /// The server is momentarily at capacity for this call (`503 busy`, `503 too_many_streams`, `429`): try again later, nothing is wrong with the request.
+    public var isBusy: Bool { status == 503 || status == 429 }
     public var errorDescription: String? {
         switch self {
         case .offline(let m): return m
