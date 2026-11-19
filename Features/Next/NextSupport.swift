@@ -30,6 +30,9 @@ enum NextText {
         case "forbidden": return "Votre rôle dans ce dossier partagé ne permet pas cette action."
         case "not_found": return "Introuvable : l’élément a été supprimé, déplacé, ou l’accès a été retiré."
         case "rate_limited": return "Trop de demandes en peu de temps : réessayez dans un instant."
+        case "busy": return "Le modèle du serveur est occupé\(e.retryAfterSeconds.map { " : réessayez dans \(Int($0)) s" } ?? " : réessayez dans un instant")."
+        case "too_many_streams": return "Le serveur a atteint son nombre maximal de connexions en direct ; la synchronisation continue par vérification périodique."
+        case "too_many_pending_uploads": return "Trop d’envois inachevés dans ce dossier partagé : terminez-les ou attendez leur expiration (24 h)."
         case "ai_unavailable": return "Aucun modèle n’est configuré sur ce serveur."
         case "ai_external_disabled": return "Les fournisseurs externes ne sont pas autorisés (réglage du serveur ou de votre compte)."
         case "provider_not_configured": return "Ce fournisseur n’est pas configuré sur le serveur."
@@ -69,7 +72,8 @@ enum NextText {
         case "file.version_added": return ("doc.badge.plus", "Nouvelle version")
         case "file.version_restored": return ("clock.arrow.circlepath", "Version \(n("from")) restaurée")
         case "file.version_deleted": return ("minus.circle", "Version supprimée")
-        case "file.renamed", "folder.renamed": return ("pencil", "Renommé (avant : « \(m["from"]?.string ?? "?") »)")
+        case "file.renamed", "folder.renamed": return ("pencil", m["from"]?.string.map { "Renommé (avant : « \($0) »)" } ?? "Renommé")
+        case "ai.suggested": return ("sparkles", "Suggestions de rangement demandées")
         case "file.downloaded": return ("arrow.down.circle", "Téléchargé")
         case "folder.created": return ("folder.badge.plus", "Dossier créé")
         case "items.moved": return ("folder", "Déplacement de \(items())")

@@ -7,12 +7,13 @@ import SPDriveNext
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage("settingsTab") private var tab = "general"
     var body: some View {
-        TabView {
-            GeneralSettings().tabItem { Label("Général", systemImage: "gearshape") }
-            SyncSettings().tabItem { Label("Synchronisation", systemImage: "arrow.triangle.2.circlepath") }
-            NotificationSettings().tabItem { Label("Notifications", systemImage: "bell") }
-            AccountSettings().tabItem { Label("Compte", systemImage: "person.crop.circle") }
+        TabView(selection: $tab) {
+            GeneralSettings().tabItem { Label("Général", systemImage: "gearshape") }.tag("general")
+            SyncSettings().tabItem { Label("Synchronisation", systemImage: "arrow.triangle.2.circlepath") }.tag("sync")
+            NotificationSettings().tabItem { Label("Notifications", systemImage: "bell") }.tag("notifications")
+            AccountSettings().tabItem { Label("Compte", systemImage: "person.crop.circle") }.tag("account")
         }
         .frame(width: 600, height: 580)
     }

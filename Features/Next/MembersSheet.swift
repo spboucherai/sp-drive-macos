@@ -65,7 +65,7 @@ struct MembersSheet: View {
                     }
                     Text("Sans nom, les membres voient le nom du dossier.").font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textSecondary)
                 }
-                if !activity.isEmpty { Section("Activité du dossier") { ForEach(activity.prefix(8)) { ActivityRow(event: $0, compact: true) } } }
+                if !activity.isEmpty { Section("Activité du dossier") { ForEach(activity.prefix(8)) { ActivityRow(event: $0, compact: true, showsTarget: true) } } }
             }.formStyle(.grouped)
         }
         .frame(width: 640, height: 620)
@@ -81,8 +81,7 @@ struct MembersSheet: View {
         guard let next = model.next else { return }
         busy = true; error = nil; defer { busy = false }
         do {
-            let user = try await next.resolveUser(email: email.trimmingCharacters(in: .whitespaces)) // exact match only; unknown and one's own address answer the same
-            _ = try await next.addMember(to: folder.id, userID: user.userId, role: role)
+            _ = try await next.addMember(to: folder.id, email: email.trimmingCharacters(in: .whitespaces), as: role) // by exact address only; unknown and one's own address answer the same
             email = ""; await reload()
         } catch { self.error = NextError.wrap(error).isNotFound ? "Aucun autre compte de ce serveur n’a cette adresse." : NextText.error(error) }
     }

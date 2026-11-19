@@ -94,6 +94,7 @@ struct MainView: View {
                 case .versions(let item): if model.meta.api >= 2 { VersionsTimeline(model: model, nav: nav, item: item) } else { VersionsSheet(item: item) }
                 case .members(let folder): MembersSheet(model: model, nav: nav, folder: folder)
                 case .collection(let c): CollectionEditor(model: model, nav: nav, existing: c)
+                case .suggest(let items): SuggestionsSheet(model: model, nav: nav, items: items)
                 case .ask(let item): AskView(model: model, nav: nav, item: item, onOpen: { nav.sheet = nil }, onClose: { nav.sheet = nil }).frame(width: 620, height: 640)
                 case .conflict(let c): ConflictSheet(model: model, nav: nav, conflict: c)
                 }

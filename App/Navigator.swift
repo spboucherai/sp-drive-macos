@@ -35,12 +35,12 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
 
 enum SheetKind: Identifiable, Equatable {
     case newFolder(parent: String), rename(DriveItem), move([DriveItem]), share(DriveItem), portal(folder: DriveItem), versions(DriveItem), conflict(SyncConflict)
-    case members(DriveItem), collection(SmartCollection?), ask(DriveItem?)
+    case members(DriveItem), collection(SmartCollection?), ask(DriveItem?), suggest([DriveItem])
     var id: String {
         switch self {
         case .newFolder(let p): "new-\(p)"; case .rename(let i): "rename-\(i.id)"; case .move(let i): "move-\(i.map(\.id).joined())"
         case .share(let i): "share-\(i.id)"; case .portal(let f): "portal-\(f.id)"; case .versions(let i): "versions-\(i.id)"; case .conflict(let c): "conflict-\(c.id)"
-        case .members(let f): "members-\(f.id)"; case .collection(let c): "collection-\(c?.id ?? "new")"; case .ask(let i): "ask-\(i?.id ?? "drive")"
+        case .members(let f): "members-\(f.id)"; case .collection(let c): "collection-\(c?.id ?? "new")"; case .ask(let i): "ask-\(i?.id ?? "drive")"; case .suggest(let i): "suggest-\(i.map(\.id).joined())"
         }
     }
 }

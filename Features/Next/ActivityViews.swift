@@ -8,12 +8,14 @@ import SwiftUI
 struct ActivityRow: View {
     let event: ActivityEvent
     var compact = false
+    /// Name what the event is about (lists that mix several items; a file's own feed does not need it).
+    var showsTarget = false
     var body: some View {
         let (symbol, text) = NextText.activity(event)
         HStack(alignment: .firstTextBaseline, spacing: SPDTheme.Space.sm) {
             Image(systemName: symbol).foregroundStyle(SPDTheme.brand).frame(width: 18).font(compact ? SPDTheme.Typo.caption : SPDTheme.Typo.body)
             VStack(alignment: .leading, spacing: 1) {
-                Text(text).font(compact ? SPDTheme.Typo.callout : SPDTheme.Typo.body).lineLimit(2)
+                Text(showsTarget ? [event.target?.name.map { "« \($0) »" }, text].compactMap { $0 }.joined(separator: " — ") : text).font(compact ? SPDTheme.Typo.callout : SPDTheme.Typo.body).lineLimit(2)
                 HStack(spacing: 4) {
                     Text(NextText.actor(event))
                     if event.viaGrant { Text("· par le partage") }
@@ -70,7 +72,7 @@ struct ActivityView: View {
                             Section(g.day) {
                                 ForEach(g.events) { e in
                                     HStack {
-                                        ActivityRow(event: e)
+                                        ActivityRow(event: e, showsTarget: true)
                                         Spacer()
                                         if let id = target(e), model.item(id) != nil { Button("Afficher") { model.reveal(itemID: id) }.buttonStyle(.link) }
                                     }.padding(.vertical, 2)

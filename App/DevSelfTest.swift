@@ -124,7 +124,12 @@ enum DevSelfTest {
                      wait: (Double, @MainActor () async -> Bool) async -> Bool) async {
         func check(_ n: String, _ ok: Bool, _ detail: String = "") { record(n, ok, detail) }
         let nav = model.nav
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { check("a main window exists", false); return }
+        // a launch that goes through device linking may still be putting its window up: give it a moment, and say what is there if it never comes
+        _ = await wait(10) { NSApp.windows.contains { $0.isVisible && $0.canBecomeMain } }
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else {
+            let seen = NSApp.windows.map { "\($0.title.isEmpty ? "(untitled)" : $0.title):visible=\($0.isVisible),mini=\($0.isMiniaturized),main=\($0.canBecomeMain),\(type(of: $0))" }.joined(separator: "; ")
+            check("a main window exists", false, "hidden=\(NSApp.isHidden) active=\(NSApp.isActive) windows=[\(seen)]"); return
+        }
         func key(_ code: UInt16, _ chars: String = "", flags: NSEvent.ModifierFlags = []) async {
             if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
                                         characters: chars, charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { NSApp.postEvent(e, atStart: false) }
@@ -405,7 +410,7 @@ enum DevSelfTest {
         _ = await wait(20) { model.children(of: folder.id).contains { $0.name == "Équipe" && !model.isPending($0.id) } }
         if let teamFolder = model.children(of: folder.id).first(where: { $0.name == "Équipe" }), team != nil {
             let who = try? await next.resolveUser(email: "member@example.test")
-            let added = who != nil ? try? await next.addMember(to: teamFolder.id, userID: who!.userId, role: .viewer, workspaceName: "Équipe test") : nil
+            let added = try? await next.addMember(to: teamFolder.id, email: "member@example.test", as: .viewer, workspaceName: "Équipe test")
             let members = try? await next.members(of: teamFolder.id)
             check("sharing: a member is added by exact e-mail with a role; the folder becomes a named workspace", added?.role == .viewer && members?.members.count == 1 && members?.folder.workspaceName == "Équipe test", who?.displayName ?? "second account not found")
             nav.go(to: folder.id); nav.sheet = .members(teamFolder); try? await Task.sleep(nanoseconds: 1_800_000_000); DevTour.snapshot("members-sheet", into: AppEnvironment.containerURL); nav.sheet = nil; try? await Task.sleep(nanoseconds: 600_000_000)
@@ -437,7 +442,121 @@ enum DevSelfTest {
         check("QR code: generated on this Mac and reads back as the link", decoded == link)
         check("devices: sessions listed with platform and app version", sessions.contains { $0.client != nil } && sessions.contains(where: \.current), "\(sessions.count) session(s)")
         if model.isAdmin { let sys = try? await next.adminSystem(); check("administration: infrastructure view readable by an administrator", sys?.version == "2.0.0" && sys?.worker != nil, "worker alive \(String(describing: sys?.worker?.alive))") }
+        await onScreen(model, api: api, next: next, folder: folder, pv: pv, record: record, wait: wait)
         nav.section = .drive; nav.go(to: nil)
+    }
+
+    /// The same things done ON SCREEN: sheets and windows are really presented, and their own controls are pressed
+    /// through the accessibility tree of this app (what a click does), then the server or the model is read.
+    static func onScreen(_ model: AppModel, api: APIClient, next: NextClient, folder: DriveItem, pv: DriveItem, record: (String, Bool, String) -> Void,
+                         wait: (Double, @MainActor () async -> Bool) async -> Bool) async {
+        func check(_ n: String, _ ok: Bool, _ detail: String = "") { record("on screen — " + n, ok, detail) }
+        func pause(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
+        func appear(_ id: String, _ seconds: Double = 12) async -> Bool { await wait(seconds) { AX.element(id: id) != nil } }
+        func shot(_ name: String, window: NSWindow? = nil) { DevTour.snapshot(name, into: AppEnvironment.containerURL, window: window) }
+        let nav = model.nav
+        nav.section = .drive; nav.go(to: folder.id); nav.selection = [pv.id]; await pause(0.6)
+        record("on screen — the accessibility API answers for this process (the checks below press real controls through it)", AX.available, "")
+
+        // --- ask a document, then click the citation ---
+        UserDefaults.standard.set("Quel est le montant du dépôt de garantie ?", forKey: "spdAsk")
+        nav.sheet = .ask(pv)
+        let cited = await wait(30) { AX.element(labelPrefix: "Source 1") != nil }
+        shot("ask-sheet")
+        UserDefaults.standard.removeObject(forKey: "spdAsk")
+        nav.go(to: nil); nav.selection = []
+        AX.press(AX.element(labelPrefix: "Source 1"))
+        let revealed = await wait(6) { nav.sheet == nil && nav.selection == [pv.id] && nav.folderID == folder.id }
+        check("a citation of the answer, pressed, closes the sheet and shows its file selected in its folder", cited && revealed, "source shown \(cited)")
+        nav.sheet = nil; await pause(0.6)
+
+        // --- the "Demander à mon Drive" window ---
+        AskWindow.open()
+        let askWindow = await wait(8) { NSApp.windows.contains { $0.isVisible && $0.title == "Demander à mon Drive" } }
+        let field = await appear("ask-field", 10)
+        if let w = NSApp.windows.first(where: { $0.title == "Demander à mon Drive" }) { shot("ask-window", window: w); w.close() }
+        NSApp.deactivate()
+        check("the “Demander à mon Drive” window opens with its question field", askWindow && field, "window \(askWindow), field \(field), opener \(AppDelegate.openAskWindow != nil), titles \(NSApp.windows.filter(\.isVisible).map(\.title))")
+
+        // --- Settings › Compte: devices list, and the external-AI consent switch ---
+        UserDefaults.standard.set("account", forKey: "settingsTab")
+        NSApp.activate(ignoringOtherApps: true); AppDelegate.openSettings?()
+        let toggle = await appear("ai-external-toggle", 12)
+        let devices = AX.count(id: "device-row")
+        let settings = NSApp.windows.first { w in w.isVisible && !w.canBecomeMain || w.title == "Compte" || w.identifier?.rawValue.contains("Settings") == true }
+        shot("settings-account", window: settings)
+        check("Settings › Compte lists the connected devices", toggle && devices >= 1, "\(devices) device row(s)")
+        let before = (try? await next.aiProviders().external?.account) ?? false
+        AX.press(AX.element(id: "ai-external-toggle"))
+        let flipped = await wait(8) { ((try? await next.aiProviders().external?.account) ?? before) != before }
+        AX.press(AX.element(id: "ai-external-toggle"))
+        let restored = await wait(8) { ((try? await next.aiProviders().external?.account) ?? !before) == before }
+        check("the external-AI consent switch changes the account's flag on the server, and back", flipped && restored, "was \(before)")
+        settings?.close(); UserDefaults.standard.set("general", forKey: "settingsTab"); NSApp.deactivate()
+
+        // --- saving a collection from the rule editor ---
+        let rule = CollectionRule(conditions: [RuleCondition(field: "folder", op: "is", value: .string(folder.id)), RuleCondition(field: "ext", op: "is", value: .string("txt"))])
+        if let made = try? await next.createCollection(CollectionDraft(name: "Écran \(Int(Date().timeIntervalSince1970) % 100000)", icon: "doc.text", color: "green", rule: rule)) {
+            await model.refreshCollections(); try? await Task.sleep(nanoseconds: 1_100_000_000)
+            nav.sheet = .collection(model.collections.first { $0.id == made.id })
+            let button = await appear("save-collection")
+            _ = await wait(6) { AX.element(labelPrefix: "Enregistrer") != nil }
+            await pause(1.2) // the live preview settles
+            shot("collection-editor")
+            AX.press(AX.element(id: "save-collection"))
+            let saved = await wait(8) { nav.sheet == nil && nav.section == .collections && nav.collectionID == made.id }
+            let after = try? await next.collections().first { $0.id == made.id }
+            check("the rule editor's Save button saves the collection and shows it", button && saved && (after?.updatedAt ?? .distantPast) > (made.updatedAt ?? .distantFuture), "updated \(after?.updatedAt.map { Fmt.date($0) } ?? "?")")
+            nav.sheet = nil; try? await next.deleteCollection(made.id); await model.refreshCollections()
+        } else { check("collection created for the editor", false) }
+
+        // --- storage: drill down into a folder by pressing its bar ---
+        nav.section = .storage
+        let bars = await appear("storage-folder", 15)
+        let rootOnly = AX.element(id: "storage-crumb-1") == nil
+        AX.press(AX.element(id: "storage-folder"))
+        let inside = await wait(8) { AX.element(id: "storage-crumb-1") != nil }
+        shot("storage-drilldown")
+        check("Storage: pressing a folder's bar drills down into it (breadcrumb grows)", bars && rootOnly && inside, "bars \(bars) (\(AX.count(id: "storage-folder"))), root crumb \(AX.element(id: "storage-crumb-0") != nil)")
+
+        // --- share sheet: create a link with the sheet's button, see its QR code ---
+        nav.section = .drive; nav.go(to: folder.id); nav.selection = [pv.id]; await pause(0.5)
+        let linksBefore = ((try? await api.shares(of: pv)) ?? []).count
+        nav.sheet = .share(pv)
+        let createShare = await appear("create-share")
+        AX.press(AX.element(id: "create-share"))
+        let qr = await wait(10) { AX.element(labelPrefix: "Code QR de l’adresse du lien") != nil }
+        shot("share-sheet-qr")
+        let links = (try? await api.shares(of: pv)) ?? []
+        check("Share sheet: its button creates the link on the server and the QR code of the address is shown", createShare && qr && links.count == linksBefore + 1, "\(links.count) link(s)")
+        for l in links { try? await api.revokeShare(l.id) }
+        nav.sheet = nil; await pause(0.7)
+
+        // --- deposit portal created from the extended sheet ---
+        let portalsBefore = Set(((try? await api.portals()) ?? []).map(\.id))
+        if let f = model.item(folder.id) {
+            nav.sheet = .portal(folder: f)
+            let createPortal = await appear("create-portal")
+            await pause(0.5); shot("portal-sheet")
+            AX.press(AX.element(id: "create-portal"))
+            let made = await wait(10) { ((try? await api.portals()) ?? []).contains { !portalsBefore.contains($0.id) && $0.folderId == folder.id } }
+            let portal = ((try? await api.portals()) ?? []).first { !portalsBefore.contains($0.id) }
+            check("Portal sheet: its button creates the deposit link on the server", createPortal && made && portal?.state == "open", portal?.title ?? "none")
+            if let portal { try? await api.revokePortal(portal.id, delete: true) }
+            nav.sheet = nil; await pause(0.7)
+        }
+
+        // --- AI organisation suggestions: nothing changes until "Appliquer" is pressed on a line ---
+        if model.has(.ai), let target = model.children(of: folder.id).first(where: { $0.name == "alpha.txt" }) {
+            nav.sheet = .suggest([target])
+            let offered = await appear("apply-name", 30)
+            shot("suggestions-sheet")
+            let untouched = ((try? await api.item(target.id, kind: .file)) ?? nil)?.name == "alpha.txt"
+            AX.press(AX.element(id: "apply-name"))
+            let applied = await wait(15) { (((try? await api.item(target.id, kind: .file)) ?? nil)?.name ?? "").hasPrefix("Classé") }
+            check("Suggestions (FAKE provider): the proposal changes nothing by itself; pressing “Appliquer” renames the file on the server", offered && untouched && applied, ((try? await api.item(target.id, kind: .file)) ?? nil)?.name ?? "?")
+            nav.sheet = nil; await pause(0.6)
+        }
     }
 
     /// Dumps the state of the menu commands as AppKit sees them (diagnostic).
@@ -476,6 +595,32 @@ enum DevSelfTest {
         }
         model.settings.gridView = false; nav.go(to: nil)
         try? lines.joined(separator: "\n").write(to: AppEnvironment.containerURL.appendingPathComponent("perf.txt"), atomically: true, encoding: .utf8)
+    }
+
+    /// Only the on-screen checks (`-spdOnScreen YES`), with their own small set-up: quicker to iterate on than the whole self-test.
+    static func onScreenOnly(_ model: AppModel) async {
+        var checks: [Check] = []
+        func wait(_ seconds: Double, _ cond: @MainActor () async -> Bool) async -> Bool {
+            let end = Date().addingTimeInterval(seconds)
+            while Date() < end { if await cond() { return true }; try? await Task.sleep(nanoseconds: 150_000_000) }
+            return false
+        }
+        let out = AppEnvironment.containerURL.appendingPathComponent("onscreen.json")
+        try? FileManager.default.removeItem(at: out)
+        defer { try? JSONEncoder().encode(checks).write(to: out) }
+        guard let api = model.api, let next = model.next, await wait(20, { model.rootID != nil && model.status.lastSync != nil }), let root = model.rootID else { return }
+        let work = AppEnvironment.containerURL.appendingPathComponent("onscreen-src", isDirectory: true)
+        try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true); defer { try? FileManager.default.removeItem(at: work) }
+        let name = "Écran \(Int(Date().timeIntervalSince1970))"
+        _ = model.createFolder(in: root, name: name)
+        guard await wait(20, { model.children(of: root).contains { $0.name == name && !model.isPending($0.id) } }), let folder = model.children(of: root).first(where: { $0.name == name }) else { return }
+        try? Data("Procès-verbal\nDépôt de garantie : 500 dollars avant le 1er juin.".utf8).write(to: work.appendingPathComponent("Procès-verbal.txt"))
+        try? Data("alpha".utf8).write(to: work.appendingPathComponent("alpha.txt"))
+        await model.upload([work.appendingPathComponent("Procès-verbal.txt"), work.appendingPathComponent("alpha.txt")], to: folder.id)
+        guard await wait(30, { model.children(of: folder.id).filter { $0.versionID != nil }.count == 2 }), let pv = model.children(of: folder.id).first(where: { $0.name == "Procès-verbal.txt" }) else { return }
+        _ = await wait(45) { ((try? await next.fileText(pv.id).status) ?? "") == "ready" }
+        await onScreen(model, api: api, next: next, folder: folder, pv: pv, record: { n, ok, d in checks.append(Check(name: n, ok: ok, detail: d)) }, wait: wait)
+        if let f = model.item(folder.id) { model.trash([f]) }
     }
 }
 #endif

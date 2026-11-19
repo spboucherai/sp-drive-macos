@@ -6,6 +6,8 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var nav: Navigator?
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     var body: some View {
         ZStack {
             if let nav {
@@ -19,7 +21,10 @@ struct RootView: View {
         }
         .spdMotion(.reveal, value: model.phase)
         .spdMotion(.reveal, value: model.locked)
-        .onAppear { if nav == nil { nav = model.claimNavigator() }; if model.activeNav == nil { model.activeNav = nav } }
+        .onAppear {
+            if nav == nil { nav = model.claimNavigator() }; if model.activeNav == nil { model.activeNav = nav }
+            AppDelegate.openAskWindow = { openWindow(id: "ask") }; AppDelegate.openSettings = { openSettings() }
+        }
         .background(WindowReader { w in
             guard let w else { return }
             if w.isKeyWindow, let nav { model.activeNav = nav }

@@ -36,6 +36,7 @@
 		669F15736E1626C0B4E9125C /* FileProviderEnumerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC064B36F80DED70CD6B3D1D /* FileProviderEnumerator.swift */; };
 		846229D00D5F8A8ABC5C2137 /* NextSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFBF6E8A1E82F103F665EDE /* NextSupport.swift */; };
 		847EF3DE354B81C4D02E0220 /* SPDriveSync in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC8196383D669523B0A2004 /* SPDriveSync */; };
+		87A2EE349806986100E653C5 /* SuggestionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50704A6B4AB910996F69A941 /* SuggestionsSheet.swift */; };
 		8C377C9EEEFA7CC907608B10 /* SPDriveNext in Frameworks */ = {isa = PBXBuildFile; productRef = D015535AD9505D8050157DA8 /* SPDriveNext */; };
 		8D31ECCE5E4025DF646ECF95 /* CollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30ADC52149421D354BB1130 /* CollectionsView.swift */; };
 		8EF8208F774FB8C838AD3424 /* SearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B433FBBE259101AD863478 /* SearchResultsView.swift */; };
@@ -101,6 +102,7 @@
 		41BBE412E34887B7EFDFC1F0 /* SPDriveFileProvider.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SPDriveFileProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		47B433FBBE259101AD863478 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
 		47C5728C35C70990E65838BC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		50704A6B4AB910996F69A941 /* SuggestionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionsSheet.swift; sourceTree = "<group>"; };
 		50AD5EB468D7AB28C9B9D76A /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		5EC51CCAB8D7A63A128B9DC5 /* StorageCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCenter.swift; sourceTree = "<group>"; };
 		5FFDD2E0A5E37636D87BB9EE /* AdminAndDevices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminAndDevices.swift; sourceTree = "<group>"; };
@@ -213,6 +215,7 @@
 				47B433FBBE259101AD863478 /* SearchResultsView.swift */,
 				3F5D0CC9A00EED489C42147C /* SharedWithMeView.swift */,
 				5EC51CCAB8D7A63A128B9DC5 /* StorageCenter.swift */,
+				50704A6B4AB910996F69A941 /* SuggestionsSheet.swift */,
 				73ED7D1C713E5E72B4462CDB /* VersionsTimeline.swift */,
 			);
 			path = Next;
@@ -493,6 +496,7 @@
 				49EF3DFBB40C441D7B2D6B38 /* SpotlightIndexer.swift in Sources */,
 				2335ACD85129B84E8E30A1ED /* StorageCenter.swift in Sources */,
 				33C99D1B6955C0EF22A6E21A /* StorageView.swift in Sources */,
+				87A2EE349806986100E653C5 /* SuggestionsSheet.swift in Sources */,
 				9C71F009F7CE848FF7391833 /* Theme.swift in Sources */,
 				CDA3343F573DDA7A38C25886 /* Thumbnails.swift in Sources */,
 				CB25167687F3BA7DAFF85568 /* TransfersView.swift in Sources */,
@@ -640,7 +644,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 3YM54G49SN;
@@ -715,7 +719,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 3YM54G49SN;

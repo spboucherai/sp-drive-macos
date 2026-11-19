@@ -77,6 +77,7 @@ struct ItemMenu: View {
                 Button("Renommer", systemImage: "pencil") { if let rename { rename(s) } else { nav.sheet = .rename(s) } }
             }
             Button("Déplacer…", systemImage: "folder.badge.gearshape") { nav.sheet = .move(items) }
+            if model.has(.ai), items.contains(where: { !$0.isFolder }) { Button("Suggestions de rangement…", systemImage: "sparkles") { nav.sheet = .suggest(items.filter { !$0.isFolder }) } }
             Button("Dupliquer", systemImage: "plus.square.on.square") { model.duplicate(items) }
             let allStarred = items.allSatisfy(\.starred)
             Button(allStarred ? "Retirer des favoris" : "Ajouter aux favoris", systemImage: allStarred ? "star.slash" : "star") { model.setStarred(items, !allStarred) }

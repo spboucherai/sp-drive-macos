@@ -40,6 +40,7 @@ struct PaletteCommand: Identifiable {
                 add("sel.reveal", "Afficher \(what) dans le Finder", "macwindow", .selection, shortcut: "⇧⌘R") { Task { await model.revealInFinder(s) } }
             }
             add("sel.download", "Télécharger \(what)", "arrow.down.circle", .selection, shortcut: "⌥⌘D") { Task { await model.download(live) } }
+            if model.has(.ai), live.contains(where: { !$0.isFolder }) { add("sel.suggest", "Suggestions de rangement pour \(what)…", "sparkles", .selection, keywords: "ia ranger renommer classer organiser") { nav.sheet = .suggest(live.filter { !$0.isFolder }) } }
             add("sel.move", "Déplacer \(what)…", "folder.badge.gearshape", .selection, shortcut: "⇧⌘M") { nav.sheet = .move(live) }
             add("sel.duplicate", "Dupliquer \(what)", "plus.square.on.square", .selection, shortcut: "⌘D") { model.duplicate(live) }
             let starred = live.allSatisfy(\.starred)

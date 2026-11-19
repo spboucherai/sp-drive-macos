@@ -28,6 +28,7 @@ struct DevicesSection: View {
                         Spacer()
                         if !d.current { Button("Révoquer") { Task { try? await model.next?.revokeSession(d.id); await load() } }.controlSize(.small).help("Ferme cette session immédiatement") }
                     }
+                    .accessibilityElement(children: .contain).accessibilityIdentifier("device-row")
                 }
             }
         }

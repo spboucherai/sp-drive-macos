@@ -24,7 +24,6 @@ struct StorageCenter: View {
             }
         }
         .task(id: model.revision) { await load() }
-        .accessibilityIdentifier("storage-center")
     }
     @ViewBuilder private func content(_ o: StorageOverview) -> some View {
         card("Espace", "internaldrive") {
@@ -67,13 +66,14 @@ struct StorageCenter: View {
                     ForEach(Array(f.breadcrumbs.enumerated()), id: \.element.id) { i, c in
                         if i > 0 { Image(systemName: "chevron.compact.right").font(.caption).foregroundStyle(SPDTheme.textTertiary) }
                         Button(i == 0 ? "Mon Drive" : c.name) { Task { await drill(i == 0 ? "root" : c.id) } }.buttonStyle(.link).font(i == f.breadcrumbs.count - 1 ? SPDTheme.Typo.bodyStrong : SPDTheme.Typo.callout)
+                            .accessibilityIdentifier("storage-crumb-\(i)")
                     }
                     Spacer()
                     Text("\(Fmt.bytes(f.total.bytes)) · \(f.total.files) fichiers").font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textSecondary).monospacedDigit()
                 }
                 let top = max(1, max(f.children.map(\.bytes).max() ?? 0, f.direct.bytes))
                 ForEach(f.children.sorted { $0.bytes > $1.bytes }.prefix(14)) { c in
-                    Button { Task { await drill(c.folder.id) } } label: { bar(c.folder.name, "folder.fill", c.bytes, c.files, top, chevron: true) }.buttonStyle(.plain).help("Voir l’intérieur de « \(c.folder.name) »")
+                    Button { Task { await drill(c.folder.id) } } label: { bar(c.folder.name, "folder.fill", c.bytes, c.files, top, chevron: true) }.buttonStyle(.plain).help("Voir l’intérieur de « \(c.folder.name) »").accessibilityIdentifier("storage-folder")
                 }
                 if f.direct.files > 0 { bar("Fichiers directement ici", "doc", f.direct.bytes, f.direct.files, top, chevron: false) }
                 if f.children.isEmpty, !f.files.isEmpty { ForEach(f.files.prefix(6)) { fileRow($0) } }

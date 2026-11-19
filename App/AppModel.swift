@@ -207,6 +207,14 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             observeSharedDatabase()
             phase = .signedIn; loginError = nil
             if settings.biometricLock { locked = true }
+            // the Finder location holds a replica of ONE account's tree. Entering as another account without having
+            // signed out (session closed, then another person signs in) must not reuse it: the system would reconcile
+            // one account's files against the other's. Remove it (unsent edits are preserved by the system), then add a fresh one.
+            let replicaOwner = AppEnvironment.defaults.string(forKey: "finderDomainAccount")
+            if let replicaOwner, replicaOwner != user.id, let kept = try? await DriveDomain.shared.remove() {
+                banner = Banner(text: "L’emplacement Finder appartenait à un autre compte : il a été recréé. Les modifications non envoyées sont conservées dans \(kept.path).", isError: false)
+            }
+            AppEnvironment.defaults.set(user.id, forKey: "finderDomainAccount")
             await applyFinderIntegration()
             DriveDomain.shared.signalResolved(.notAuthenticated)
             notifier.requestAuthorization()
@@ -221,6 +229,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             if UserDefaults.standard.bool(forKey: "spdSelfTest") { Task { await DevSelfTest.run(self) } }
             if UserDefaults.standard.bool(forKey: "spdMenuProbe") { Task { await DevSelfTest.menuProbe(self) } }
             if UserDefaults.standard.bool(forKey: "spdPerf") { Task { await DevSelfTest.perfProbe(self) } }
+            if UserDefaults.standard.bool(forKey: "spdOnScreen") { Task { await DevSelfTest.onScreenOnly(self) } }
             if UserDefaults.standard.bool(forKey: "spdTour") { Task { await DevTour.run(self, into: AppEnvironment.containerURL.appendingPathComponent("tour")) } } // inside the sandbox
             #endif
         } catch { loginError = "Impossible d’ouvrir la base locale : \(error.localizedDescription)"; phase = .signedOut }
@@ -256,6 +265,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         case "ask": nav.sheet = .ask(target)
         case "members": if let t = target ?? nav.folderID.flatMap({ item($0) }) { nav.sheet = .members(t) }
         case "collection": nav.sheet = .collection(collections.first)
+        case "suggest": nav.sheet = .suggest(items.filter { !$0.isFolder }.prefix(3).map { $0 })
         default: break
         }
         if d.bool(forKey: "spdPalette") { nav.showPalette = true }
@@ -281,7 +291,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         if let id { try? FileManager.default.removeItem(at: AppEnvironment.databaseURL(account: id).deletingLastPathComponent()) }
         try? FileManager.default.removeItem(at: AppEnvironment.workDirectory)
         try? FileManager.default.removeItem(at: cacheDirectory)
-        AppEnvironment.currentAccount = nil; AppEnvironment.defaults.removeObject(forKey: "account")
+        AppEnvironment.currentAccount = nil; AppEnvironment.defaults.removeObject(forKey: "account"); AppEnvironment.defaults.removeObject(forKey: "finderDomainAccount")
         account = nil; quota = nil; transfers = []; conflicts = []; shares = []; sharedIDs = []; status = SyncStatus(); phase = .signedOut
     }
     /// Number of local decisions and transfers the server has not confirmed yet (shown before signing out).

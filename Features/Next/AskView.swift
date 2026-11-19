@@ -58,6 +58,15 @@ struct AskTurn: Identifiable {
         }
     }
     func stop() { task?.cancel(); if let i = turns.indices.last { turns[i].streaming = false } }
+    /// A citation was clicked: show its file in the browser (its folder, the file selected). False when the mirror does not hold it yet.
+    @discardableResult static func reveal(_ s: AISource, model: AppModel, nav: Navigator?) -> Bool {
+        let nav = nav ?? model.activeNav ?? model.nav
+        guard let item = model.item(s.fileId) else { model.banner = Banner(text: "« \(s.name) » n’est pas encore dans la copie locale de votre Drive.", isError: false); return false }
+        nav.sheet = nil; nav.searchText = ""; if nav.section != .drive { nav.section = .drive }
+        nav.go(to: item.parentID == model.rootID ? nil : item.parentID); nav.selection = [item.id]
+        AppDelegate.showMainWindow()
+        return true
+    }
     func reset() { stop(); turns = [] }
 }
 
@@ -91,7 +100,6 @@ struct AskView: View {
             if let q = UserDefaults.standard.string(forKey: "spdAsk"), session.turns.isEmpty { session.question = q; session.ask(model, scope: scope) } // visual checks
             #endif
         }
-        .accessibilityIdentifier("ask-view")
     }
     private var header: some View {
         HStack(spacing: SPDTheme.Space.sm) {
@@ -242,11 +250,7 @@ private struct TurnView: View {
             }
         }
     }
-    private func open(_ s: AISource) {
-        guard let nav = nav ?? model.activeNav ?? Optional(model.nav) else { return }
-        if let item = model.item(s.fileId) { nav.sheet = nil; nav.searchText = ""; nav.go(to: item.parentID == model.rootID ? nil : item.parentID); nav.selection = [item.id]; AppDelegate.showMainWindow(); onOpen?() }
-        else { model.banner = Banner(text: "« \(s.name) » n’est pas encore dans la copie locale de votre Drive.", isError: false) }
-    }
+    private func open(_ s: AISource) { if AskSession.reveal(s, model: model, nav: nav) { onOpen?() } }
 }
 
 /// The answer with its [n] citations turned into links to the sources.

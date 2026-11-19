@@ -2,6 +2,7 @@
 // File: Components/AppKitBridges.swift
 // Description: The AppKit pieces under the SwiftUI interface: the Quick Look panel (QLPreviewPanel) with its zoom from the item, on-screen anchors of items, a per-window key-down catcher (Space, Return, arrows, type-select), an inline rename field, and access to the window's search field.
 import AppKit
+import ApplicationServices
 import Quartz
 import SwiftUI
 
@@ -165,3 +166,45 @@ struct RenameField: NSViewRepresentable {
         }
     }
 }
+
+#if SPD_DEV
+// MARK: Driving the interface from inside the app (development checks)
+/// Finds controls of this app's own windows through the system accessibility API addressed to its own process, and
+/// presses them — what a person's click does, without a pointer and without touching any other app. (SwiftUI only
+/// builds its accessibility tree for a client of that API; asking the views directly returns nothing.)
+@MainActor enum AX {
+    private static let app = AXUIElementCreateApplication(getpid())
+    private static func attr(_ e: AXUIElement, _ name: String) -> AnyObject? { var v: AnyObject?; return AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success ? v : nil }
+    private static func children(_ e: AXUIElement) -> [AXUIElement] { (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] }
+    static func identifier(_ e: AXUIElement) -> String { (attr(e, kAXIdentifierAttribute) as? String) ?? "" }
+    static func label(_ e: AXUIElement) -> String { (attr(e, kAXDescriptionAttribute) as? String) ?? (attr(e, kAXTitleAttribute) as? String) ?? "" }
+    /// Windows of the app, the small ones first (sheets, settings, panels): what a check presses is usually there, and the
+    /// main window can hold thousands of cells.
+    private static var windows: [AXUIElement] {
+        let all = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
+        return all.sorted { (attr($0, kAXMainAttribute) as? Bool ?? false ? 1 : 0) < (attr($1, kAXMainAttribute) as? Bool ?? false ? 1 : 0) }
+    }
+    /// Breadth-first, each element once, and never more than `budget` elements: an accessibility tree may contain
+    /// cross-references, and a walk without these limits was seen spinning for minutes.
+    private static func walk(_ root: AXUIElement, budget: Int = 6000, _ visit: (AXUIElement) -> Bool) -> Bool {
+        var queue = [root], seen: Set<AXUIElement> = [root], index = 0
+        while index < queue.count, index < budget {
+            let e = queue[index]; index += 1
+            if visit(e) { return true }
+            for c in children(e) where seen.insert(c).inserted { queue.append(c) }
+        }
+        return false
+    }
+    static func find(where match: (AXUIElement) -> Bool) -> AXUIElement? {
+        var hit: AXUIElement?
+        for w in windows { if walk(w, { if match($0) { hit = $0; return true }; return false }) { break } }
+        return hit
+    }
+    static func element(id: String) -> AXUIElement? { find { identifier($0) == id } }
+    static func element(labelPrefix: String) -> AXUIElement? { find { label($0).hasPrefix(labelPrefix) } }
+    static func count(id: String) -> Int { var n = 0; for w in windows { _ = walk(w, { if identifier($0) == id { n += 1 }; return false }) }; return n }
+    /// True when the API answers for this process at all (it needs no permission for one's own process, but a sandbox could refuse it).
+    static var available: Bool { !windows.isEmpty }
+    @discardableResult static func press(_ e: AXUIElement?) -> Bool { guard let e else { return false }; return AXUIElementPerformAction(e, kAXPressAction as CFString) == .success }
+}
+#endif

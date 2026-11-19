@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var openMainWindow: (() -> Void)?
     /// Opens the "Demander à mon Drive" window.
     static var openAskWindow: (() -> Void)?
+    /// Opens the Settings window (SwiftUI's own action, captured by a view).
+    static var openSettings: (() -> Void)?
     private var hasMainWindow: Bool { NSApp.windows.contains { $0.isVisible && $0.canBecomeMain } }
     /// Brings a main window forward, opening one when none is left.
     static func showMainWindow() {
