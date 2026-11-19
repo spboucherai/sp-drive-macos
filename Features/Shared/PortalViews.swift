@@ -20,6 +20,19 @@ struct PortalSheet: View {
     @State private var extensions = ""
     @State private var subfolder = true
     @State private var notify = true
+    // the remaining fields of a deposit request (parity with the web builder)
+    @State private var instructions = ""
+    @State private var confirmation = ""
+    @State private var brandName = ""
+    @State private var limitSubmissions = false
+    @State private var maxSubmissions = 50
+    @State private var perHour = 20
+    @State private var askName = "optional"
+    @State private var askEmail = "optional"
+    @State private var askReference = "off"
+    @State private var requireConsent = false
+    @State private var consentText = ""
+    @State private var retentionNote = ""
     @State private var busy = false
     @State private var error: String?
     @State private var created: URL?
@@ -45,6 +58,17 @@ struct PortalSheet: View {
                     Section("Présentation") {
                         TextField("Titre affiché au déposant", text: $title)
                         TextField("Consigne (facultatif)", text: $description, axis: .vertical).lineLimit(2...4)
+                        TextField("Instructions détaillées (facultatif)", text: $instructions, axis: .vertical).lineLimit(2...5)
+                        TextField("Message affiché après le dépôt (facultatif)", text: $confirmation, axis: .vertical).lineLimit(1...3)
+                        TextField("Nom affiché en en-tête (facultatif)", text: $brandName)
+                    }
+                    Section("Ce que le déposant indique") {
+                        Picker("Nom", selection: $askName) { fieldChoices }
+                        Picker("Courriel", selection: $askEmail) { fieldChoices }
+                        Picker("Référence de dossier", selection: $askReference) { fieldChoices }
+                        Toggle("Exiger un consentement", isOn: $requireConsent)
+                        if requireConsent { TextField("Texte du consentement", text: $consentText, axis: .vertical).lineLimit(2...4) }
+                        TextField("Note sur la conservation des fichiers (facultatif)", text: $retentionNote)
                     }
                     Section("Protection") {
                         Toggle("Mot de passe", isOn: $usePassword)
@@ -56,6 +80,9 @@ struct PortalSheet: View {
                         Stepper("Taille maximale par fichier : \(maxFileMB) Mo", value: $maxFileMB, in: 1...2048, step: 50)
                         Stepper("Total accepté : \(maxTotalGB) Go", value: $maxTotalGB, in: 1...500)
                         Stepper("Fichiers par dépôt : \(maxFiles)", value: $maxFiles, in: 1...200)
+                        Toggle("Limiter le nombre de dépôts", isOn: $limitSubmissions)
+                        if limitSubmissions { Stepper("Au plus \(maxSubmissions) dépôts", value: $maxSubmissions, in: 1...10000) }
+                        Stepper("Dépôts par heure : \(perHour)", value: $perHour, in: 1...1000)
                         TextField("Types acceptés (ex. pdf, docx — vide = tous sauf exécutables)", text: $extensions)
                     }
                     Section("Réception") {
@@ -64,13 +91,14 @@ struct PortalSheet: View {
                     }
                     if let error { Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) } }
                     HStack { Spacer(); Button { Task { await create() } } label: { Label(busy ? "Création…" : "Créer et copier le lien", systemImage: "tray.and.arrow.down") }.buttonStyle(.borderedProminent)
-                        .disabled(busy || title.trimmingCharacters(in: .whitespaces).isEmpty || (usePassword && password.count < 4)).accessibilityIdentifier("create-portal") }
+                        .disabled(busy || title.trimmingCharacters(in: .whitespaces).isEmpty || (usePassword && password.count < 4) || (requireConsent && consentText.trimmingCharacters(in: .whitespaces).isEmpty)).accessibilityIdentifier("create-portal") }
                 }.formStyle(.grouped)
             }
         }
-        .frame(width: 560, height: 640)
+        .frame(width: 580, height: 700)
         .onAppear { if title.isEmpty { title = "Dépôt de fichiers" + (folder.name.isEmpty ? "" : " — \(folder.name)") } }
     }
+    @ViewBuilder private var fieldChoices: some View { Text("Non demandé").tag("off"); Text("Facultatif").tag("optional"); Text("Obligatoire").tag("required") }
     private func create() async {
         guard let api = model.api else { return }
         busy = true; defer { busy = false }
@@ -80,8 +108,17 @@ struct PortalSheet: View {
         s.maxFileBytes = Int64(maxFileMB) * 1024 * 1024; s.maxTotalBytes = Int64(maxTotalGB) * 1024 * 1024 * 1024; s.maxFilesPerSubmission = maxFiles
         s.allowedExtensions = extensions.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
         s.subfolderPerSubmission = subfolder; s.notifyOwner = notify
-        do { let made = try await api.createPortal(s); created = made.url; Pickers.copy(made.url.absoluteString); error = nil }
-        catch { self.error = DriveError.wrap(error).errorDescription }
+        do {
+            // the engine's settings plus the fields only the 2.0 builder knows, in one request body
+            var body = (try JSONSerialization.jsonObject(with: APIClient.encoder.encode(s)) as? [String: Any]) ?? [:]
+            body["instructions"] = instructions; body["confirmationMessage"] = confirmation; body["brandName"] = brandName; body["retentionNote"] = retentionNote
+            body["submissionsPerHour"] = perHour; body["maxSubmissions"] = limitSubmissions ? maxSubmissions : NSNull()
+            body["fields"] = ["name": askName, "email": askEmail, "reference": askReference, "custom": [Any]()] as [String: Any]
+            body["requireConsent"] = requireConsent; body["consentText"] = requireConsent ? consentText : ""
+            let request = try api.request("POST", "/requests", body: try JSONSerialization.data(withJSONObject: body))
+            let made = try APIClient.decoder.decode(APIClient.CreatedPortal.self, from: try await api.data(for: request).0)
+            created = made.url; Pickers.copy(made.url.absoluteString); error = nil
+        } catch { self.error = DriveError.wrap(error).errorDescription }
     }
 }
 

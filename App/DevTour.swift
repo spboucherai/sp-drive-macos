@@ -59,6 +59,17 @@ enum DevTour {
         }
         if let atelier { await sheet("24-sheet-portal", .portal(folder: atelier)) }
         await sheet("25-sheet-newfolder", .newFolder(parent: root))
+        // SP Drive 2.0 screens (only what the connected server offers)
+        if model.has(.contentSearch) { await step("30-search-content", wait: 2.2) { nav.section = .drive; nav.go(to: nil); nav.searchText = "couleur" }; nav.searchText = "" }
+        if model.has(.semantic) { await step("31-search-semantic", wait: 2.5) { nav.searchText = "choix de typographie"; nav.searchSemantic = true }; nav.searchSemantic = false; nav.searchText = "" }
+        if model.isAvailable(.collections) { await step("32-collection", wait: 1.6) { nav.collectionID = model.collections.first?.id; nav.section = .collections }; await sheet("33-sheet-collection-rule", .collection(model.collections.first)) }
+        if model.isAvailable(.sharedWithMe) { await step("34-shared-with-me", wait: 1.5) { nav.section = .sharedWithMe } }
+        if model.isAvailable(.activity) { await step("35-activity", wait: 1.6) { nav.section = .activity } }
+        if model.has(.storage) { await step("36-storage-center", wait: 2.5) { nav.section = .storage } }
+        if model.isAvailable(.admin) { await step("37-admin", wait: 1.8) { nav.section = .admin } }
+        nav.section = .drive; nav.go(to: client?.id); await pause(0.5)
+        if let file, model.has(.ai) { nav.sheet = .ask(file); await pause(1.8); snapshot("38-sheet-ask", into: dir); nav.sheet = nil; await pause(0.7) }
+        if let atelier, model.has(.collab) { await sheet("39-sheet-members", .members(atelier)) }
         if let c = model.conflicts.first(where: \.isOpen) { nav.sheet = .conflict(c); await pause(3.0); snapshot("26-sheet-conflict", into: dir); nav.sheet = nil; await pause(0.7) }
         // the Command Center, in a plain window (the status item's own popover cannot be opened from code)
         let host = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 348, height: 10), styleMask: [.titled], backing: .buffered, defer: false)

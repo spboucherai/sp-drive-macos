@@ -2,6 +2,7 @@
 // File: Features/MyDrive/Inspector.swift
 // Description: The contextual inspector: what the selection is (picture, name, kind), where it lives, its state on this Mac, its recent versions, its share links, and the actions that go with it. It follows the selection without ever taking the focus or moving the browser.
 import SPDriveCore
+import SPDriveNext
 import SPDriveSync
 import SwiftUI
 
@@ -63,8 +64,14 @@ private struct SingleInspector: View {
                         if model.isPinned(item.id), !model.isPinnedItself(item.id) { Text("Inclus dans un dossier gardé hors ligne.").font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textTertiary) }
                     }
                 }
+                if !item.isTrashed, model.has(.ai), !model.isPending(item.id) {
+                    Button { nav.sheet = .ask(item) } label: {
+                        Label(item.isFolder ? "Demander à ce dossier…" : "Demander à ce document…", systemImage: "sparkles").frame(maxWidth: .infinity).padding(.vertical, 3)
+                    }.buttonStyle(.bordered).tint(SPDTheme.brand).accessibilityIdentifier("inspector-ask")
+                }
                 if !item.isTrashed { sharing }
                 if !item.isFolder { versions; integrity }
+                if !item.isTrashed, model.has(.activity), !model.isPending(item.id) { section("Activité") { FileActivitySection(model: model, item: item) } }
             }
             .padding(SPDTheme.Space.lg)
         }
@@ -122,6 +129,7 @@ private struct SingleInspector: View {
                 }
             }
             Button(active.isEmpty ? "Créer un lien…" : "Gérer les liens…") { nav.sheet = .share(item) }.buttonStyle(.link).font(SPDTheme.Typo.callout)
+            if item.isFolder, model.has(.collab) { Button("Membres et rôles…") { nav.sheet = .members(item) }.buttonStyle(.link).font(SPDTheme.Typo.callout) }
             if item.isFolder { Button("Créer un lien de dépôt…") { nav.sheet = .portal(folder: item) }.buttonStyle(.link).font(SPDTheme.Typo.callout) }
         }
     }

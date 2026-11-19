@@ -37,6 +37,11 @@ struct BrowserView: View {
     @State private var window: NSWindow?
 
     private var currentFolderID: String? { nav.section == .drive ? (nav.folderID ?? model.rootID) : nil }
+    /// Search 2.0: the server looks in names and content. Used in Mon Drive when it offers it and can be reached; the
+    /// local name search (with its filters) remains for the other sections, offline, and on a 1.0 server.
+    private var serverSearch: Bool {
+        nav.section == .drive && model.has(.contentSearch) && model.online && nav.filter.isEmpty && !nav.searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     /// What the section shows, from the mirror. `revision` is read so that the view follows every change of the mirror.
     private var rows: [BrowserRow] {
@@ -78,10 +83,11 @@ struct BrowserView: View {
         let rows = self.rows
         VStack(spacing: 0) {
             if nav.section == .drive { PathBar(model: model, nav: nav) }
-            if nav.isSearching || nav.section == .drive && !nav.filter.isEmpty { FilterBar(model: model, nav: nav) }
+            if !serverSearch, nav.isSearching || nav.section == .drive && !nav.filter.isEmpty { FilterBar(model: model, nav: nav) }
             ZStack {
                 Group {
-                    if rows.isEmpty { emptyState }
+                    if serverSearch { SearchResultsView(model: model, nav: nav) }
+                    else if rows.isEmpty { emptyState }
                     else if model.settings.gridView { grid(rows) }
                     else { table(rows) }
                 }
@@ -100,8 +106,8 @@ struct BrowserView: View {
             StatusBar(model: model, count: rows.count, selection: selected(nav.selection), showsGridSize: model.settings.gridView && !rows.isEmpty)
         }
         .navigationTitle(title)
-        .navigationSubtitle(nav.isSearching ? "\(rows.count) résultat\(rows.count > 1 ? "s" : "")" : subtitle(rows))
-        .searchable(text: $nav.searchText, placement: .toolbar, prompt: nav.section == .trash ? "Rechercher dans la corbeille" : "Rechercher")
+        .navigationSubtitle(serverSearch ? "Recherche dans les noms et le contenu" : nav.isSearching ? "\(rows.count) résultat\(rows.count > 1 ? "s" : "")" : subtitle(rows))
+        .searchable(text: $nav.searchText, placement: .toolbar, prompt: nav.section == .trash ? "Rechercher dans la corbeille" : (nav.section == .drive && model.has(.contentSearch) ? "Noms et contenu des documents" : "Rechercher"))
         .toolbar { BrowserToolbar(model: model, nav: nav, currentFolderID: currentFolderID, selection: selected(nav.selection), sort: sortBinding) }
         .inspector(isPresented: $nav.showInspector) {
             InspectorView(model: model, nav: nav, items: selected(nav.selection)).inspectorColumnWidth(min: 270, ideal: 300, max: 400)

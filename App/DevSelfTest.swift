@@ -7,7 +7,9 @@ import QuartzCore
 import CryptoKit
 import Foundation
 import UniformTypeIdentifiers
+import CoreImage
 import SPDriveCore
+import SPDriveNext
 import SPDriveSync
 
 @MainActor
@@ -133,7 +135,9 @@ enum DevSelfTest {
         // --- engine policy as the app sees it ---
         await model.refreshPolicy()
         check("policy: adaptive concurrency within 1…6", (1...6).contains(model.policy.concurrency) && model.policy.manual == nil, "\(model.policy.concurrency) now, measured limit \(model.policy.measuredLimit)")
-        check("events: polling fallback is listening", model.status.events == .polling, model.status.events.rawValue)
+        let wantStream = model.has(.events)
+        let channel = await wait(15) { model.status.events == (wantStream ? .stream : .polling) }
+        check(wantStream ? "events: the server's event stream is live" : "events: polling fallback is listening", channel, model.status.events.rawValue)
         check("power: state read from the system", model.power.lowPowerMode == ProcessInfo.processInfo.isLowPowerModeEnabled, "battery \(model.power.onBattery) level \(model.power.level.map { String($0) } ?? "none")")
 
         // --- three more files, one of them a real image, to navigate among ---
@@ -312,8 +316,128 @@ enum DevSelfTest {
         await SpotlightIndexer.shared.removeAll()
         let removed = await wait(20) { await SpotlightIndexer.shared.count(named: "alpha.txt") == 0 }
         check("Spotlight: items indexed, found by name, then removed", indexed > 0 && found && removed, "\(indexed) indexed, found \(found), removed \(removed)")
+        if model.meta.api >= 2 { await next2(model, api: api, store: store, folder: folder, work: work, record: record, wait: wait) }
         try? FileManager.default.removeItem(at: work)
         nav.go(to: nil); model.settings.gridView = false
+    }
+
+    /// SP Drive 2.0 against a 2.0 server. The AI provider of the test backend is a FAKE (Scripts/fake-ai.mjs): these checks prove the app's side of the protocol, not a model.
+    static func next2(_ model: AppModel, api: APIClient, store: MetadataStore, folder: DriveItem, work: URL, record: (String, Bool, String) -> Void,
+                      wait: (Double, @MainActor () async -> Bool) async -> Bool) async {
+        func check(_ n: String, _ ok: Bool, _ detail: String = "") { record(n, ok, detail) }
+        guard let next = model.next else { check("2.0: client available", false); return }
+        let nav = model.nav
+        check("2.0: capabilities read from GET /meta", model.meta.api == 2 && model.has(.collab) && model.has(.collections), model.meta.features.joined(separator: " "))
+        let sessions = (try? await next.sessions()) ?? []
+        let me = sessions.first(where: \.current)
+        check("X-SPD-Client: this session is known to the server as macos/2.0.0", me?.client?.platform == "macos" && me?.client?.version == "2.0.0", "\(me?.client?.platform ?? "?")/\(me?.client?.version ?? "?") (\(me?.client?.os ?? "?"))")
+
+        // --- a change made by another client arrives through the stream, without a poll ---
+        let t0 = Date()
+        let remote = try? await api.createFolder(parent: folder.id, name: "créé par un autre client")
+        let pushed = await wait(4) { remote.map { model.item($0.id) != nil } ?? false }
+        check("events: a change made elsewhere reaches the mirror in under 4 s (stream, not the 30 s poll)", pushed && model.status.events == .stream, String(format: "%.2f s", Date().timeIntervalSince(t0)))
+
+        // --- search 2.0 ---
+        let word = "zq\(Int(Date().timeIntervalSince1970) % 100000)x"
+        try? Data("Procès-verbal\nLe \(word) de la coopérative est adopté.\nDépôt de garantie : 500 dollars avant le 1er juin.".utf8).write(to: work.appendingPathComponent("Procès-verbal.txt"))
+        await model.upload([work.appendingPathComponent("Procès-verbal.txt")], to: folder.id)
+        _ = await wait(30) { model.children(of: folder.id).contains { $0.name == "Procès-verbal.txt" && $0.versionID != nil } }
+        guard let pv = model.children(of: folder.id).first(where: { $0.name == "Procès-verbal.txt" }) else { check("search: test document uploaded", false); return }
+        let indexed = await wait(45) { ((try? await next.fileText(pv.id).status) ?? "") == "ready" }
+        let hits = try? await next.search(word)
+        let hit = hits?.files.first { $0.id == pv.id }
+        check("search 2.0: a word found only inside a document is returned with a highlighted passage", indexed && hit?.match?.where == "content" && (hit?.match?.snippetRuns.contains { $0.matched && $0.text.lowercased() == word } ?? false), hit?.match?.snippet ?? "no hit")
+        nav.go(to: nil); nav.searchText = word
+        try? await Task.sleep(nanoseconds: 1_800_000_000)
+        DevTour.snapshot("search-content", into: AppEnvironment.containerURL)
+        nav.searchText = ""
+
+        // --- AI (fake provider) ---
+        let providers = try? await next.aiProviders()
+        let session = AskSession(); await session.load(model)
+        session.question = "Quel est le montant du dépôt de garantie ?"; session.ask(model, scope: .files([pv.id]))
+        _ = await wait(30) { session.turns.last?.streaming == false }
+        let turn = session.turns.last
+        check("AI: providers listed; creator and provider are told apart", providers?.enabled == true && providers?.providers.first { $0.id == "maclustr" }?.models.first?.creator != nil, "default \(providers?.default?.model ?? "none")")
+        check("AI: a streamed answer with numbered sources (FAKE provider — no real model)", turn?.failure == nil && (turn?.answer.contains("[1]") ?? false) && turn?.sources.first?.fileId == pv.id && turn?.done != nil, turn?.failure ?? String((turn?.answer ?? "").prefix(80)))
+        session.question = "xyzzyqq wobblefrotz"; session.ask(model, scope: .folder(folder.id))
+        _ = await wait(30) { session.turns.last?.streaming == false }
+        check("AI: nothing retrieved is said as such, without calling the model", session.turns.last?.done?.empty == true && session.turns.last?.answer.isEmpty == true)
+
+        // --- collections ---
+        let rule = CollectionRule(conditions: [RuleCondition(field: "name", op: "contains", value: .string("Procès")), RuleCondition(field: "folder", op: "is", value: .string(folder.id))])
+        let made = try? await next.createCollection(CollectionDraft(name: "Autotest \(word)", icon: "doc.text", color: "teal", rule: rule))
+        await model.refreshCollections()
+        let listed = model.collections.first { $0.id == made?.id }
+        check("collections: created, listed in the sidebar with its live count", listed?.count == 1, "count \(listed?.count ?? -1)")
+        if let made { nav.collectionID = made.id; nav.section = .collections; try? await Task.sleep(nanoseconds: 1_200_000_000); DevTour.snapshot("collection", into: AppEnvironment.containerURL); try? await next.deleteCollection(made.id); await model.refreshCollections() }
+        check("collections: deleted (files untouched)", !model.collections.contains { $0.id == made?.id } && model.item(pv.id) != nil)
+        nav.section = .drive
+
+        // --- versions and comparison ---
+        try? Data("Procès-verbal\nLe \(word) de la coopérative est adopté à l'unanimité.\nDépôt de garantie : 750 dollars avant le 1er juin.\nProchaine assemblée en janvier.".utf8).write(to: work.appendingPathComponent("pv2.txt"))
+        await model.uploadNewVersion(of: pv, from: work.appendingPathComponent("pv2.txt"))
+        let two = await wait(30) { ((try? await next.versions(of: pv.id).versions.count) ?? 0) == 2 }
+        let versions = (try? await next.versions(of: pv.id).versions) ?? []
+        var diff: [LineDiff.Line] = []
+        if versions.count == 2 {
+            let a = work.appendingPathComponent("a.txt"), b = work.appendingPathComponent("b.txt")
+            let s1 = try? await next.downloadVersion(fileID: pv.id, versionID: versions[1].id, to: a), s2 = try? await next.downloadVersion(fileID: pv.id, versionID: versions[0].id, to: b)
+            if s1 == versions[1].sha256, s2 == versions[0].sha256, let x = try? String(contentsOf: a, encoding: .utf8), let y = try? String(contentsOf: b, encoding: .utf8) { diff = LineDiff.lines(x, y) ?? [] }
+        }
+        check("versions: timeline with author; text comparison shows what changed", two && versions.first?.createdBy?.me == true && diff.filter { $0.kind == .added }.count == 3 && diff.filter { $0.kind == .removed }.count == 2 && diff.filter { $0.kind == .same }.count == 1,
+              "+\(diff.filter { $0.kind == .added }.count) −\(diff.filter { $0.kind == .removed }.count)")
+        if let current = model.item(pv.id) { nav.go(to: folder.id); nav.sheet = .versions(current); try? await Task.sleep(nanoseconds: 2_000_000_000); DevTour.snapshot("versions-timeline", into: AppEnvironment.containerURL); nav.sheet = nil; try? await Task.sleep(nanoseconds: 700_000_000) }
+
+        // --- activity, storage, duplicates ---
+        let feed = (try? await next.fileActivity(pv.id).events) ?? []
+        check("activity: the file's real audit trail (upload, then new version)", feed.map(\.action) == ["file.version_added", "file.uploaded"] && feed.allSatisfy { $0.actor.me == true }, feed.map(\.action).joined(separator: ", "))
+        let overview = try? await next.storageOverview()
+        let drill = try? await next.storageFolder(folder.id)
+        check("storage: overview by kind and by folder, drill-down into a folder", (overview?.byKind.isEmpty == false) && (overview?.byFolder.isEmpty == false) && drill?.breadcrumbs.last?.id == folder.id, "\(overview?.byKind.count ?? 0) kinds, \(drill?.direct.files ?? 0) files here")
+        let before = model.children(of: folder.id).count
+        let dup = try? await next.duplicates()
+        check("duplicates: listed, and looking deletes nothing", dup != nil && model.children(of: folder.id).count == before, "\(dup?.groups.count ?? -1) group(s)")
+
+        // --- private sharing: owner side, then a folder shared WITH this account by the second test account ---
+        let team = model.createFolder(in: folder.id, name: "Équipe")
+        _ = await wait(20) { model.children(of: folder.id).contains { $0.name == "Équipe" && !model.isPending($0.id) } }
+        if let teamFolder = model.children(of: folder.id).first(where: { $0.name == "Équipe" }), team != nil {
+            let who = try? await next.resolveUser(email: "member@example.test")
+            let added = who != nil ? try? await next.addMember(to: teamFolder.id, userID: who!.userId, role: .viewer, workspaceName: "Équipe test") : nil
+            let members = try? await next.members(of: teamFolder.id)
+            check("sharing: a member is added by exact e-mail with a role; the folder becomes a named workspace", added?.role == .viewer && members?.members.count == 1 && members?.folder.workspaceName == "Équipe test", who?.displayName ?? "second account not found")
+            nav.go(to: folder.id); nav.sheet = .members(teamFolder); try? await Task.sleep(nanoseconds: 1_800_000_000); DevTour.snapshot("members-sheet", into: AppEnvironment.containerURL); nav.sheet = nil; try? await Task.sleep(nanoseconds: 600_000_000)
+            if let who { try? await next.removeMember(of: teamFolder.id, userID: who.userId) }
+            let gone = try? await next.members(of: teamFolder.id); check("sharing: access removed", gone?.members.isEmpty == true)
+        } else { check("sharing: folder created", false) }
+        await model.refreshGrants()
+        if let g = model.grants.first(where: { $0.role == .editor }) {
+            let listing = try? await next.sharedChildren(grant: g.grantId)
+            try? Data("apport de l’autotest".utf8).write(to: work.appendingPathComponent("apport.txt"))
+            let sent = try? await next.uploadShared(grant: g.grantId, file: work.appendingPathComponent("apport.txt"), name: "apport \(word).txt")
+            let after = try? await next.sharedChildren(grant: g.grantId)
+            check("shared with me: an editor browses the folder and uploads into it", listing?.folder.isGrantRoot == true && (listing?.files.isEmpty == false) && sent != nil && (after?.files.contains { $0.id == sent?.file.id } ?? false), "\(g.displayName), \(after?.files.count ?? 0) files")
+            if let sent { try? await next.sharedTrash(grant: g.grantId, fileIDs: [sent.file.id]) }
+        } else { check("shared with me: a folder shared by the second account is listed (run Scripts/seed-next.sh --collab)", false, "\(model.grants.count) grant(s)") }
+        if let u = model.grants.first(where: { $0.role == .uploader }) {
+            var forbidden = false
+            do { _ = try await next.sharedChildren(grant: u.grantId) } catch { forbidden = NextError.wrap(error).isForbidden }
+            let dropped = try? await next.uploadShared(grant: u.grantId, file: work.appendingPathComponent("apport.txt"), name: "dépôt \(word).txt")
+            check("shared with me: a depositor cannot list (403) but can send a file in", forbidden && dropped?.file.name == "dépôt \(word).txt")
+        }
+
+        // --- QR code, devices, administration ---
+        let link = "https://drive.spboucher.ai/s/EXEMPLE-\(word)"
+        var decoded: String?
+        if let img = QRCode.image(link), let tiff = img.tiffRepresentation, let ci = CIImage(data: tiff) {
+            decoded = (CIDetector(ofType: CIDetectorTypeQRCode, context: nil, options: [CIDetectorAccuracy: CIDetectorAccuracyHigh])?.features(in: ci).first as? CIQRCodeFeature)?.messageString
+        }
+        check("QR code: generated on this Mac and reads back as the link", decoded == link)
+        check("devices: sessions listed with platform and app version", sessions.contains { $0.client != nil } && sessions.contains(where: \.current), "\(sessions.count) session(s)")
+        if model.isAdmin { let sys = try? await next.adminSystem(); check("administration: infrastructure view readable by an administrator", sys?.version == "2.0.0" && sys?.worker != nil, "worker alive \(String(describing: sys?.worker?.alive))") }
+        nav.section = .drive; nav.go(to: nil)
     }
 
     /// Dumps the state of the menu commands as AppKit sees them (diagnostic).

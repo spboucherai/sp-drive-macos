@@ -3,6 +3,7 @@
 // Description: Settings window: general (Finder location, start at login, menu bar), synchronisation (pause, bandwidth, parallel transfers), notifications, account and security (devices, biometric lock, sign out).
 import ServiceManagement
 import SPDriveCore
+import SPDriveNext
 import SwiftUI
 
 struct SettingsView: View {
@@ -13,7 +14,7 @@ struct SettingsView: View {
             NotificationSettings().tabItem { Label("Notifications", systemImage: "bell") }
             AccountSettings().tabItem { Label("Compte", systemImage: "person.crop.circle") }
         }
-        .frame(width: 580, height: 520)
+        .frame(width: 600, height: 580)
     }
 }
 
@@ -136,6 +137,7 @@ private struct AccountSettings: View {
                 Toggle("Verrouiller l’application avec Touch ID", isOn: $s.biometricLock)
                 Text("Le jeton de session de ce Mac est gardé dans le trousseau. Le verrou demande Touch ID (ou le mot de passe du Mac) à l’ouverture et après une absence.").font(.caption).foregroundStyle(.secondary)
             }
+            if model.meta.api >= 2 { AIConsentSection(model: model); DevicesSection(model: model) } else {
             Section("Appareils connectés") {
                 if sessions.isEmpty { Text(error ?? "Chargement…").foregroundStyle(.secondary) }
                 ForEach(sessions) { d in
@@ -149,7 +151,7 @@ private struct AccountSettings: View {
                         if !d.current { Button("Révoquer") { Task { try? await model.api?.revokeSession(d.id); await load() } }.controlSize(.small) }
                     }
                 }
-            }
+            } }
             Section {
                 Button("Se déconnecter de ce Mac…", role: .destructive) { confirmSignOut = true }
             }
@@ -166,4 +168,28 @@ private struct AccountSettings: View {
     private func load() async {
         do { sessions = try await model.api?.sessions() ?? []; error = nil } catch { self.error = DriveError.wrap(error).errorDescription }
     }
+}
+
+/// The account's own consent to external AI providers. Off by default; the local provider needs none.
+struct AIConsentSection: View {
+    let model: AppModel
+    @State private var providers: AIProviders?
+    @State private var error: String?
+    var body: some View {
+        Section("SP Drive AI") {
+            if let p = providers {
+                let local = p.providers.filter { $0.local && $0.configured }, external = p.providers.filter { !$0.local && $0.configured }
+                LabeledContent("Modèle local", value: local.isEmpty ? "aucun configuré sur ce serveur" : local.flatMap { $0.models.map(\.label) }.joined(separator: ", "))
+                Toggle("Autoriser les fournisseurs externes pour mon compte", isOn: Binding(get: { p.external?.account ?? false }, set: { on in Task { await set(on) } }))
+                    .accessibilityIdentifier("ai-external-toggle")
+                Text(p.external?.server == true
+                     ? (external.isEmpty ? "Le serveur autorise les fournisseurs externes, mais aucun n’est configuré." : "Fournisseurs externes configurés : \(external.map(\.label).joined(separator: ", ")). Activé, des passages de vos documents leur sont envoyés à chaque question que vous posez avec l’un de leurs modèles.")
+                     : "L’administrateur de ce serveur n’a pas activé les fournisseurs externes : ce réglage est sans effet tant que c’est le cas. Avec le modèle local, rien ne quitte l’infrastructure MacLustr.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else { Text(error ?? "Chargement…").foregroundStyle(.secondary) }
+        }
+        .task { await load() }
+    }
+    private func load() async { do { providers = try await model.next?.aiProviders(); error = nil } catch { self.error = NextText.error(error) } }
+    private func set(_ on: Bool) async { do { try await model.next?.setExternalAI(on) } catch { self.error = NextText.error(error) }; await load() }
 }

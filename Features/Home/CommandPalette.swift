@@ -32,7 +32,9 @@ struct PaletteCommand: Identifiable {
             let what = live.count == 1 ? "« \(live[0].name) »" : "\(live.count) éléments"
             if let s = live.first, live.count == 1 {
                 add("sel.open", "Ouvrir \(what)", s.isFolder ? "folder" : "arrow.up.forward.app", .selection, shortcut: "⌘↓") { if s.isFolder { nav.go(to: s.id) } else { Task { await model.open(s) } } }
-                add("sel.share", "Partager \(what)…", "link", .selection, shortcut: "⇧⌘L", keywords: "lien") { nav.sheet = .share(s) }
+                add("sel.share", "Partager \(what) par lien…", "link", .selection, shortcut: "⇧⌘L", keywords: "lien") { nav.sheet = .share(s) }
+                if s.isFolder, model.has(.collab) { add("sel.members", "Membres de \(what)…", "person.2", .selection, keywords: "partage privé rôle inviter") { nav.sheet = .members(s) } }
+                if model.has(.ai) { add("sel.ask", "Demander à \(what)…", "sparkles", .selection, keywords: "question ia") { nav.sheet = .ask(s) } }
                 add("sel.rename", "Renommer \(what)", "pencil", .selection, shortcut: "↩") { nav.renamingID = s.id }
                 if !s.isFolder { add("sel.versions", "Historique des versions de \(what)…", "clock.arrow.circlepath", .selection) { nav.sheet = .versions(s) } }
                 add("sel.reveal", "Afficher \(what) dans le Finder", "macwindow", .selection, shortcut: "⇧⌘R") { Task { await model.revealInFinder(s) } }
@@ -47,7 +49,7 @@ struct PaletteCommand: Identifiable {
             add("sel.info", "Lire les informations", "info.circle", .selection, shortcut: "⌘I") { nav.showInspector = true }
             add("sel.trash", "Supprimer \(what) du Drive", "trash", .selection, shortcut: "⌘⌫", keywords: "corbeille effacer") { model.trash(live) }
         }
-        for s in [SidebarItem.drive, .recent, .favorites, .offline, .shared, .portals, .transfers, .conflicts, .trash, .storage] where s.isAvailable {
+        for s in [SidebarItem.drive, .recent, .favorites, .offline, .shared, .sharedWithMe, .portals, .collections, .transfers, .conflicts, .activity, .trash, .storage, .admin] where model.isAvailable(s) {
             add("go.\(s.rawValue)", s.title, s.symbol, .go, keywords: "aller ouvrir section") { nav.section = s }
         }
         if nav.section == .drive, let id = nav.folderID, let f = model.item(id) { add("go.parent", "Dossier parent", "arrow.up", .go, shortcut: "⌘↑") { nav.go(to: f.parentID == model.rootID ? nil : f.parentID, direction: .shallower) } }
@@ -59,6 +61,8 @@ struct PaletteCommand: Identifiable {
             }
             if let f = model.item(folder) { add("file.portal", "Créer un lien de dépôt…", "tray.and.arrow.down", .file, keywords: "portail recevoir") { nav.sheet = .portal(folder: f) } }
         }
+        if model.has(.ai) { add("ai.ask", "Demander à mon Drive…", "sparkles", .file, shortcut: "⌥⌘A", keywords: "question ia ai intelligence modèle") { AskWindow.open() } }
+        if model.has(.collections) { add("file.collection", "Nouvelle collection…", "square.stack.3d.up", .file, keywords: "règle intelligente") { nav.sheet = .collection(nil) } }
         add("file.window", "Nouvelle fenêtre", "macwindow.badge.plus", .file, shortcut: "⌘N") { openWindow() }
         add("view.list", "Afficher en liste", "list.bullet", .view, shortcut: "⌘1") { model.settings.gridView = false }
         add("view.grid", "Afficher en grille", "square.grid.2x2", .view, shortcut: "⌘2", keywords: "vignettes icônes") { model.settings.gridView = true }

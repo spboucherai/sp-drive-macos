@@ -125,6 +125,10 @@ struct ShareRow: View {
                 .font(.caption).foregroundStyle(.secondary)
             if let url {
                 HStack { Text(url.absoluteString).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle).textSelection(.enabled); Button("Copier", action: copy).controlSize(.small) }
+                HStack(alignment: .top, spacing: 12) {
+                    QRCodeView(text: url.absoluteString, side: 110)
+                    Text("Code QR de cette adresse, dessiné sur ce Mac. Comme l’adresse, il n’est disponible que maintenant : renouvelez le lien pour en obtenir un autre.").font(.caption).foregroundStyle(.secondary)
+                }
             } else if link.isActive {
                 Text("L’adresse n’est affichée qu’à la création : renouvelez-la pour en obtenir une nouvelle.").font(.caption).foregroundStyle(.tertiary)
             }

@@ -22,7 +22,7 @@ struct MenuBarLabel: View {
             }
         }()
         Image(systemName: symbol).accessibilityLabel("SP Drive : \(model.phase == .signedIn ? SyncStatusText.title(s) : "déconnecté")")
-            .onAppear { AppDelegate.openMainWindow = { openWindow(id: "main") } }
+            .onAppear { AppDelegate.openMainWindow = { openWindow(id: "main") }; AppDelegate.openAskWindow = { openWindow(id: "ask") } }
     }
 }
 

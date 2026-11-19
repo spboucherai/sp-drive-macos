@@ -3,7 +3,7 @@
 # File: Scripts/seed-next.sh
 # Description: Adds to the TEST account what the 2.0 interface needs to be looked at and measured: real images (so thumbnails exist), a real PDF, text documents, nested folders, a folder of 1,000 small files, and a real version conflict. Synthetic content only; local test backend only.
 #
-# Usage: Scripts/seed-next.sh [--thousand] [--conflict]
+# Usage: Scripts/seed-next.sh [--thousand] [--collab] [--conflict]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . /tmp/spdrive-backend-dev/env
@@ -71,6 +71,27 @@ for arg in "$@"; do case "$arg" in
     ls "$T/k" | xargs -P 8 -I{} "$CLI" put "$T/k/{}" "$M" >/dev/null
     echo "seeded: Mille fichiers ($M), $("$CLI" ls "$M" | wc -l | tr -d ' ') items"
   else echo "Mille fichiers already seeded"; fi ;;
+--collab)
+  # the SECOND test account shares two folders with the app's account (editor, and deposit-only), so that
+  # "Partagés avec moi" has something real to browse; and the app's account gets a smart collection
+  [ -n "${SPDRIVE_TEST_TOKEN2:-}" ] || { echo "no second account in the test backend"; exit 1; }
+  api2() { curl -fsS -X "$1" "$SPDRIVE_URL/api/v1$2" -H "Authorization: Bearer $SPDRIVE_TEST_TOKEN2" -H 'content-type: application/json' -d "${3:-{\}}"; }
+  ROOT2="$(api2 GET /sync/cursor '' | sed -E 's/.*"rootId":"([^"]+)".*/\1/')"
+  if ! api GET /shared-with-me '' | grep -q "Studio partagé"; then
+    E="$(SPDRIVE_TOKEN="$SPDRIVE_TEST_TOKEN2" "$CLI" mkdir "$ROOT2" "Équipe design" | cut -f2)"
+    printf '# Charte graphique\n\nCouleur principale : violet. Typographie : New York pour les titres.\n' > "$T/charte.md"; SPDRIVE_TOKEN="$SPDRIVE_TEST_TOKEN2" "$CLI" put "$T/charte.md" "$E" "Charte graphique.md" >/dev/null
+    printf 'lot;échéance\nmaquettes;2026-12-04\nicônes;2026-12-11\n' > "$T/plan.csv"; SPDRIVE_TOKEN="$SPDRIVE_TEST_TOKEN2" "$CLI" put "$T/plan.csv" "$E" "Planning.csv" >/dev/null
+    SPDRIVE_TOKEN="$SPDRIVE_TEST_TOKEN2" "$CLI" mkdir "$E" "Maquettes" >/dev/null
+    api2 POST "/folders/$E/members" "{\"email\":\"$SPDRIVE_TEST_EMAIL\",\"role\":\"editor\",\"workspaceName\":\"Studio partagé\"}" >/dev/null
+    B="$(SPDRIVE_TOKEN="$SPDRIVE_TEST_TOKEN2" "$CLI" mkdir "$ROOT2" "Boîte de dépôt" | cut -f2)"
+    api2 POST "/folders/$B/members" "{\"email\":\"$SPDRIVE_TEST_EMAIL\",\"role\":\"uploader\"}" >/dev/null
+    echo "seeded: two folders shared with $SPDRIVE_TEST_EMAIL"
+  else echo "shares already seeded"; fi
+  if ! api GET /collections '' | grep -q "Images du chantier"; then
+    api POST /collections '{"name":"Images du chantier","icon":"photo","color":"blue","rule":{"match":"all","conditions":[{"field":"kind","op":"is","value":"image"}],"sort":{"by":"updated","dir":"desc"}}}' >/dev/null
+    api POST /collections '{"name":"Modifiés ce mois-ci","icon":"clock","color":"violet","rule":{"match":"all","conditions":[{"field":"modified","op":"within","value":30},{"field":"kind","op":"isNot","value":"video"}],"sort":{"by":"updated","dir":"desc"}}}' >/dev/null
+    echo "seeded: two collections"
+  fi ;;
 --conflict)
   # a real conflict: the app's test account edits a file from an old version while "another device" already replaced it
   A="$(find_or_make "$ROOT" "Atelier")"

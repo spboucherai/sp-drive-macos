@@ -4,40 +4,43 @@
 import Foundation
 import Observation
 import SPDriveCore
+import SPDriveNext
 import SPDriveSync
 import SwiftUI
 
 enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
     case drive, recent, shared, portals, favorites, offline, downloads, transfers, conflicts, trash, storage
-    // SP Drive 2.0, phase 2: they need the new server endpoints and stay hidden until `isAvailable`
-    case collections, sharedWithMe
+    // SP Drive 2.0: shown only when the connected server offers the feature (`AppModel.isAvailable`)
+    case collections, sharedWithMe, activity, admin
     var id: String { rawValue }
     var title: String {
         switch self {
         case .drive: "Mon Drive"; case .recent: "Récents"; case .shared: "Partagés"; case .portals: "Portails"; case .favorites: "Favoris"
         case .offline: "Hors ligne"; case .downloads: "Téléchargements"; case .transfers: "Transferts"; case .conflicts: "Conflits"; case .trash: "Corbeille"; case .storage: "Stockage"
-        case .collections: "Collections"; case .sharedWithMe: "Partagés avec moi"
+        case .collections: "Collections"; case .sharedWithMe: "Partagés avec moi"; case .activity: "Activité"; case .admin: "Administration"
         }
     }
     var symbol: String {
         switch self {
         case .drive: "externaldrive"; case .recent: "clock"; case .shared: "link"; case .portals: "tray.and.arrow.down"; case .favorites: "star"
         case .offline: "arrow.down.circle"; case .downloads: "arrow.down.circle"; case .transfers: "arrow.up.arrow.down"; case .conflicts: "exclamationmark.triangle"; case .trash: "trash"; case .storage: "chart.pie"
-        case .collections: "square.stack.3d.up"; case .sharedWithMe: "person.2"
+        case .collections: "square.stack.3d.up"; case .sharedWithMe: "person.2"; case .activity: "clock.arrow.circlepath"; case .admin: "server.rack"
         }
     }
     /// Sections that show items of the tree in the browser.
     var isBrowser: Bool { [.drive, .recent, .favorites, .offline, .trash].contains(self) }
-    /// False for what the connected server cannot serve yet: such a section is not shown at all (no empty promise).
-    var isAvailable: Bool { self != .collections && self != .sharedWithMe }
+    /// Sections that exist on every server. The others depend on `GET /meta` (see `AppModel.isAvailable`).
+    var isAvailable: Bool { ![.collections, .sharedWithMe, .activity, .admin].contains(self) }
 }
 
 enum SheetKind: Identifiable, Equatable {
     case newFolder(parent: String), rename(DriveItem), move([DriveItem]), share(DriveItem), portal(folder: DriveItem), versions(DriveItem), conflict(SyncConflict)
+    case members(DriveItem), collection(SmartCollection?), ask(DriveItem?)
     var id: String {
         switch self {
         case .newFolder(let p): "new-\(p)"; case .rename(let i): "rename-\(i.id)"; case .move(let i): "move-\(i.map(\.id).joined())"
         case .share(let i): "share-\(i.id)"; case .portal(let f): "portal-\(f.id)"; case .versions(let i): "versions-\(i.id)"; case .conflict(let c): "conflict-\(c.id)"
+        case .members(let f): "members-\(f.id)"; case .collection(let c): "collection-\(c?.id ?? "new")"; case .ask(let i): "ask-\(i?.id ?? "drive")"
         }
     }
 }
@@ -73,6 +76,11 @@ enum TransferFilter: String, CaseIterable, Identifiable { case all, uploads, dow
     var confirmPurge: [DriveItem] = []
     var confirmEmptyTrash = false
     var transferFilter = TransferFilter.all
+    /// The smart collection shown by the Collections section.
+    var collectionID: String?
+    /// Search 2.0: where the server looks (names, content, both) and whether it searches by meaning.
+    var searchScope = SearchScope.all
+    var searchSemantic = false
     /// How the last folder change moved in the tree: drives the direction of the transition.
     var direction = Direction.lateral
     private(set) var backStack: [String?] = []

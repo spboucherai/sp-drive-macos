@@ -92,7 +92,7 @@ public struct NextFolder: Codable, Sendable, Identifiable, Hashable {
         match = try c.decodeIfPresent(SearchMatch.self, forKey: .match)
     }
 }
-public struct NextCrumb: Codable, Sendable, Hashable, Identifiable { public var id: String; public var name: String }
+public struct NextCrumb: Codable, Sendable, Hashable, Identifiable { public var id: String; public var name: String; public init(id: String, name: String) { self.id = id; self.name = name } }
 
 // MARK: §2 Capabilities, sessions
 public struct ServerMeta: Codable, Sendable, Equatable {
@@ -177,7 +177,7 @@ public struct AIProvider: Codable, Sendable, Hashable, Identifiable {
     public var models: [AIModel]
 }
 public struct AIProviders: Codable, Sendable, Equatable {
-    public struct Choice: Codable, Sendable, Hashable { public var provider: String; public var model: String }
+    public struct Choice: Codable, Sendable, Hashable { public var provider: String; public var model: String; public init(provider: String, model: String) { self.provider = provider; self.model = model } }
     public struct External: Codable, Sendable, Hashable { public var server: Bool; public var account: Bool }
     /// At least one provider is usable by this account.
     public var enabled: Bool

@@ -65,7 +65,9 @@ struct ItemMenu: View {
             }
             Divider()
             if let s = single {
-                Button("Partager…", systemImage: "link") { nav.sheet = .share(s) }
+                Button("Partager par lien…", systemImage: "link") { nav.sheet = .share(s) }
+                if s.isFolder, model.has(.collab) { Button("Membres…", systemImage: "person.2") { nav.sheet = .members(s) } }
+                if model.has(.ai), !model.isPending(s.id) { Button(s.isFolder ? "Demander à ce dossier…" : "Demander à ce document…", systemImage: "sparkles") { nav.sheet = .ask(s) } }
                 if s.isFolder { Button("Créer un lien de dépôt…", systemImage: "tray.and.arrow.down") { nav.sheet = .portal(folder: s) } }
                 else {
                     Button("Historique des versions…", systemImage: "clock.arrow.circlepath") { nav.sheet = .versions(s) }
@@ -127,6 +129,7 @@ struct BrowserToolbar: ToolbarContent {
                 Picker("Trier par", selection: Binding(get: { sort.0 }, set: { sort = ($0, sort.1) })) { ForEach(BrowserSort.allCases) { Text($0.title).tag($0) } }.pickerStyle(.inline)
                 Picker("Ordre", selection: Binding(get: { sort.1 == .forward }, set: { sort = (sort.0, $0 ? .forward : .reverse) })) { Text("Croissant").tag(true); Text("Décroissant").tag(false) }.pickerStyle(.inline)
             } label: { Label("Trier", systemImage: "arrow.up.arrow.down") }.help("Ordre de tri")
+            if model.has(.ai) { Button { AskWindow.open() } label: { Label("Demander à mon Drive", systemImage: "sparkles") }.help("Demander à mon Drive (⌥⌘A)") }
             Button { nav.showPalette = true } label: { Label("Commandes", systemImage: "command") }.help("Palette de commandes (⌘K)")
             Button { nav.showInspector.toggle() } label: { Label("Informations", systemImage: "sidebar.trailing") }.help("Afficher les informations (⌘I)")
         }
@@ -189,6 +192,7 @@ struct AppCommands: Commands {
         CommandMenu("Synchronisation") {
             Button("Synchroniser maintenant") { Task { await model.syncNow() } }.keyboardShortcut("r").disabled(!ready)
             Button(info?.paused == true ? "Reprendre la synchronisation" : "Mettre en pause") { Task { await model.setPaused(!model.settings.syncPaused) } }.disabled(!ready)
+            Button("Demander à mon Drive") { AskWindow.open() }.keyboardShortcut("a", modifiers: [.command, .option]).disabled(!ready || !model.has(.ai))
             Button("Centre de transferts") { nav.section = .transfers }.keyboardShortcut("t", modifiers: [.command, .option]).disabled(!ready)
             Divider()
             Button("Ouvrir SP Drive dans le Finder") { Task { await DriveDomain.shared.openInFinder() } }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(info?.finderReady != true)

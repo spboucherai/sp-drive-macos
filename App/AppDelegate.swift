@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
     /// Opens the main window (set by the views, which own SwiftUI's window actions).
     static var openMainWindow: (() -> Void)?
+    /// Opens the "Demander à mon Drive" window.
+    static var openAskWindow: (() -> Void)?
     private var hasMainWindow: Bool { NSApp.windows.contains { $0.isVisible && $0.canBecomeMain } }
     /// Brings a main window forward, opening one when none is left.
     static func showMainWindow() {

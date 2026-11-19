@@ -2,6 +2,7 @@
 // File: Features/Offline/StorageView.swift
 // Description: Storage dashboard: space on MacLustr, what is on this Mac (local copies, pinned, cache), counts, the largest files, and the two distinct actions — free local space (the files stay on SP Drive) versus delete from the Drive.
 import SPDriveCore
+import SPDriveNext
 import SwiftUI
 
 struct StorageView: View {
@@ -16,7 +17,8 @@ struct StorageView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if let q = model.quota, q.limit > 0 {
+                if model.has(.storage), model.online { StorageCenter(model: model, nav: nav) }
+                else if let q = model.quota, q.limit > 0 {
                     card("Sur MacLustr", symbol: "server.rack") {
                         QuotaBar(used: q.used, limit: q.limit)
                         HStack { stat("Utilisé", Fmt.bytes(q.used)); stat("Disponible", Fmt.bytes(q.free)); stat("Total", Fmt.bytes(q.limit)) }
@@ -37,7 +39,7 @@ struct StorageView: View {
                     }
                     Text("« Libérer l’espace » retire seulement la copie de ce Mac : les fichiers restent sur SP Drive et se retéléchargent à l’ouverture. Les éléments épinglés et les modifications pas encore envoyées ne sont jamais retirés.").font(.caption).foregroundStyle(.secondary)
                 }
-                card("Fichiers les plus volumineux", symbol: "chart.bar") {
+                if !(model.has(.storage) && model.online) { card("Fichiers les plus volumineux", symbol: "chart.bar") {
                     if largest.isEmpty { Text("Aucun fichier.").foregroundStyle(.secondary) }
                     ForEach(largest) { f in
                         HStack {
@@ -49,7 +51,7 @@ struct StorageView: View {
                             Button("Afficher") { nav.open(folder: f.parentID == model.rootID ? nil : f.parentID); nav.selection = [f.id] }.controlSize(.small)
                         }
                     }
-                }
+                } }
             }
             .padding(20).frame(maxWidth: 820, alignment: .leading)
         }

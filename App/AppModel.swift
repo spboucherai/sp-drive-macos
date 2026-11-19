@@ -6,6 +6,7 @@ import Foundation
 import LocalAuthentication
 import Observation
 import SPDriveCore
+import SPDriveNext
 import SPDriveSync
 
 struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var isError: Bool }
@@ -60,6 +61,37 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     var policy = TransferQueue.Policy()
     var power = PowerState.unconstrained
     let thumbnails = ThumbnailStore()
+    // SP Drive 2.0
+    /// The 2.0 endpoints (SPDriveNext) on the same server and token; nil when signed out.
+    private(set) var next: NextClient?
+    /// What the connected server can do (`GET /meta`); a 1.0 server has no feature.
+    var meta = ServerMeta.v1
+    var collections: [SmartCollection] = []
+    var grants: [SharedGrant] = []
+    func has(_ f: ServerMeta.Feature) -> Bool { meta.has(f) }
+    var isAdmin: Bool { account?.role == "admin" }
+    /// A section is offered only when the server can serve it: no empty promise.
+    func isAvailable(_ s: SidebarItem) -> Bool {
+        switch s {
+        case .collections: has(.collections); case .sharedWithMe: has(.collab); case .activity: has(.activity); case .admin: isAdmin && meta.api >= 2
+        default: true
+        }
+    }
+    /// Reads the server's capabilities, plugs the event stream in when it has one, and loads what the sidebar shows.
+    func refreshNext() async {
+        guard let next, let api, let engine else { return }
+        guard let m = try? await next.meta() else { return } // unreachable: keep what we knew
+        let had = meta.has(.events)
+        meta = m
+        if m.has(.events), !had { await engine.setEventSource(NextEventSource(api: api)) } else if !m.has(.events), had { await engine.setEventSource(nil) }
+        await refreshCollections(); await refreshGrants()
+    }
+    func refreshCollections() async { if has(.collections), let next, let c = try? await next.collections() { collections = c } }
+    func refreshGrants() async { if has(.collab), let next, let g = try? await next.sharedWithMe() { grants = g } }
+    private func serverNotified(_ kind: String) async {
+        if kind.hasPrefix("collab.") { await refreshGrants() }
+        lastDepositCheck = .distantPast; await checkDeposits()
+    }
     private let powerSource = SystemPowerSource()
 
     private(set) var api: APIClient?
@@ -161,6 +193,8 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             let store = try MetadataStore(url: AppEnvironment.databaseURL(account: user.id))
             let engine = SyncEngine(api: api, store: store, network: network, workDirectory: AppEnvironment.workDirectory, deviceName: AppEnvironment.deviceName, power: powerSource)
             self.store = store; self.engine = engine; account = user; quota = q
+            next = NextClient(APIClientTransport(api: api))
+            await engine.setNotifyHandler { [weak self] kind in await self?.serverNotified(kind) }
             thumbnails.configure(api: api, directory: cacheDirectory.appendingPathComponent("thumbnails", isDirectory: true))
             await engine.setRemoteChangeHandler { [weak self] changes in await self?.remoteChanged(changes) }
             await applyTransferSettings()
@@ -179,6 +213,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             await reloadLists()
             Task { await self.refreshShares() }
             consumeFinderRequest() // the app may have been opened by the Finder action itself
+            await refreshNext()
             applyDevArguments()
             DropZoneController.shared.update(model: self)
             Task { await SpotlightIndexer.shared.sync(model: self) }
@@ -194,7 +229,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     private func applyDevArguments() {
         #if SPD_DEV
         let d = UserDefaults.standard
-        if let s = d.string(forKey: "spdSection"), let section = SidebarItem(rawValue: s), section.isAvailable { nav.section = section }
+        if let s = d.string(forKey: "spdSection"), let section = SidebarItem(rawValue: s), isAvailable(section) { nav.section = section }
         if d.object(forKey: "spdGrid") != nil { settings.gridView = d.bool(forKey: "spdGrid") }
         if let name = d.string(forKey: "spdFolder"), let root = rootID, let f = children(of: root).first(where: { $0.name == name }) { nav.folderID = f.id }
         if let path = d.string(forKey: "spdPath"), var at = rootID { // "Atelier/Photos de chantier"
@@ -225,7 +260,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
     private func leave() async {
         for t in tasks { t.cancel() }; tasks.removeAll()
         await engine?.stop()
-        engine = nil; store = nil
+        engine = nil; store = nil; next = nil; meta = .v1; collections = []; grants = []
         thumbnails.reset()
         DropZoneController.shared.hide()
     }

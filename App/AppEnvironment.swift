@@ -60,8 +60,14 @@ enum AppEnvironment {
         let os = ProcessInfo.processInfo.operatingSystemVersion
         return "SPDrive-macOS/\(v) (macOS \(os.majorVersion).\(os.minorVersion))"
     }
+    /// `X-SPD-Client` of SP Drive 2.0, sent on every request by the app and by the File Provider extension: `macos/2.0.0 (27.0)`.
+    static var clientHeader: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return "macos/\(v) (\(os.majorVersion).\(os.minorVersion))"
+    }
     static let tokens: TokenStore = KeychainTokenStore(service: "ai.spboucher.spdrive\(variant)", accessGroup: keychainGroup)
-    static func makeAPI() throws -> APIClient { try APIClient(baseURL: serverURL, tokens: tokens, userAgent: userAgent) }
+    static func makeAPI() throws -> APIClient { try APIClient(baseURL: serverURL, tokens: tokens, userAgent: userAgent, clientHeader: clientHeader) }
     /// The mirror of the signed-in account, or nil when nobody is signed in on this Mac.
     static func openStore() throws -> MetadataStore? { try currentAccount.map { try MetadataStore(url: databaseURL(account: $0)) } }
 

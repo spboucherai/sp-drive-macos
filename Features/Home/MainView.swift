@@ -2,6 +2,7 @@
 // File: Features/Home/MainView.swift
 // Description: Main window: the sidebar (library, sharing, activity), the section shown next to it, the command palette above, the sheets, and the message banner.
 import SPDriveCore
+import SPDriveNext
 import SPDriveSync
 import SwiftUI
 
@@ -16,19 +17,34 @@ struct MainView: View {
         NavigationSplitView {
             List(selection: Binding(get: { nav.section }, set: { if let s = $0 { nav.section = s } })) {
                 Section("Bibliothèque") { row(.drive); row(.recent); row(.favorites); row(.offline) }
-                // SP Drive 2.0 (phase 2): listed only when the server offers them
-                if SidebarItem.collections.isAvailable { Section("Collections") { row(.collections) } }
+                // SP Drive 2.0: listed only when the connected server offers them
+                if model.isAvailable(.collections) {
+                    Section("Collections") {
+                        ForEach(model.collections) { c in
+                            Button { nav.collectionID = c.id; nav.section = .collections } label: {
+                                Label { Text(c.name).lineLimit(1) } icon: { Image(systemName: CollectionLook.symbol(c.icon)).foregroundStyle(CollectionLook.color(c.color)) }.badge(c.count ?? 0)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(nav.section == .collections && (nav.collectionID ?? model.collections.first?.id) == c.id ? RoundedRectangle(cornerRadius: 6).fill(SPDTheme.selection).padding(.horizontal, 10) : nil)
+                            .contextMenu { Button("Modifier la règle…") { nav.sheet = .collection(c) } }
+                            .accessibilityIdentifier("sidebar-collection")
+                        }
+                        Button { nav.sheet = .collection(nil) } label: { Label("Nouvelle collection…", systemImage: "plus") }.buttonStyle(.plain).foregroundStyle(SPDTheme.textSecondary)
+                    }
+                }
                 Section("Partage") {
                     row(.shared)
-                    if SidebarItem.sharedWithMe.isAvailable { row(.sharedWithMe) }
+                    if model.isAvailable(.sharedWithMe) { row(.sharedWithMe, badge: model.grants.count) }
                     row(.portals)
                 }
                 Section("Activité") {
                     row(.transfers, badge: model.status.transfers.running + model.status.transfers.queued)
                     if openConflicts > 0 || nav.section == .conflicts { row(.conflicts, badge: openConflicts) } // shown when there is something to settle
+                    if model.isAvailable(.activity) { row(.activity) }
                     row(.trash)
                 }
                 Section("Ce Mac") { row(.storage) }
+                if model.isAvailable(.admin) { Section("Serveur") { row(.admin) } }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 300)
@@ -44,7 +60,10 @@ struct MainView: View {
                         case .transfers, .downloads: TransfersView()
                         case .conflicts: ConflictsView()
                         case .storage: StorageView()
-                        case .collections, .sharedWithMe: EmptyView()
+                        case .collections: CollectionsView()
+                        case .sharedWithMe: SharedWithMeView()
+                        case .activity: ActivityView()
+                        case .admin: AdminView()
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,7 +91,10 @@ struct MainView: View {
                 case .move(let items): MoveSheet(items: items)
                 case .share(let item): ShareSheet(item: item)
                 case .portal(let folder): PortalSheet(folder: folder)
-                case .versions(let item): VersionsSheet(item: item)
+                case .versions(let item): if model.meta.api >= 2 { VersionsTimeline(model: model, nav: nav, item: item) } else { VersionsSheet(item: item) }
+                case .members(let folder): MembersSheet(model: model, nav: nav, folder: folder)
+                case .collection(let c): CollectionEditor(model: model, nav: nav, existing: c)
+                case .ask(let item): AskView(model: model, nav: nav, item: item, onOpen: { nav.sheet = nil }, onClose: { nav.sheet = nil }).frame(width: 620, height: 640)
                 case .conflict(let c): ConflictSheet(model: model, nav: nav, conflict: c)
                 }
             }
