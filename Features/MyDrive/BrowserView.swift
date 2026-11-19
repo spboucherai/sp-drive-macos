@@ -103,7 +103,7 @@ struct BrowserView: View {
                 guard let target = currentFolderID else { return false }
                 return Drops.handle(providers, into: target, model: model)
             }
-            StatusBar(model: model, count: rows.count, selection: selected(nav.selection), showsGridSize: model.settings.gridView && !rows.isEmpty)
+            if !serverSearch { StatusBar(model: model, count: rows.count, selection: selected(nav.selection), showsGridSize: model.settings.gridView && !rows.isEmpty) }
         }
         .navigationTitle(title)
         .navigationSubtitle(serverSearch ? "Recherche dans les noms et le contenu" : nav.isSearching ? "\(rows.count) résultat\(rows.count > 1 ? "s" : "")" : subtitle(rows))

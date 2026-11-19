@@ -237,6 +237,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             if at != rootID { nav.folderID = at }
         }
         if let q = d.string(forKey: "spdSearch") { nav.searchText = q }
+        if d.bool(forKey: "spdSemantic") { nav.searchSemantic = true }
         let items = nav.section == .trash ? trash() : children(of: nav.folderID ?? rootID ?? "")
         let target = d.string(forKey: "spdSelect").flatMap { n in items.first { $0.name == n } } ?? (d.bool(forKey: "spdSelectFirst") ? items.first : nil)
         if let target { nav.selection = [target.id] }
@@ -252,9 +253,14 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         case "move": if let t = target { nav.sheet = .move([t]) }
         case "newFolder": if let r = nav.folderID ?? rootID { nav.sheet = .newFolder(parent: r) }
         case "conflict": if let c = conflicts.first(where: \.isOpen) { nav.sheet = .conflict(c) }
+        case "ask": nav.sheet = .ask(target)
+        case "members": if let t = target ?? nav.folderID.flatMap({ item($0) }) { nav.sheet = .members(t) }
+        case "collection": nav.sheet = .collection(collections.first)
         default: break
         }
         if d.bool(forKey: "spdPalette") { nav.showPalette = true }
+        // the app's own appearance for visual checks (the system setting is not touched): -spdAppearance dark|light
+        if let a = d.string(forKey: "spdAppearance") { NSApp.appearance = NSAppearance(named: a == "dark" ? .darkAqua : .aqua) }
         #endif
     }
     private func leave() async {

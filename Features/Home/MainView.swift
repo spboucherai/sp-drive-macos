@@ -167,6 +167,7 @@ struct SidebarFooter: View {
             }
         }
         .padding(.horizontal, 14).padding(.bottom, 10)
+        .background(.bar) // rows of a long sidebar scroll under it
     }
 }
 

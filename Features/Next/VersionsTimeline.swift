@@ -62,7 +62,12 @@ struct VersionsTimeline: View {
             if let note { Label(note, systemImage: "exclamationmark.triangle").font(SPDTheme.Typo.callout).foregroundStyle(SPDTheme.critical).padding(SPDTheme.Space.md) }
         }
         .frame(width: 940, height: 620).background(SPDTheme.surface)
-        .task { await reload() }
+        .task {
+            await reload()
+            #if SPD_DEV
+            if UserDefaults.standard.bool(forKey: "spdCompare") { compare = list.value?.versions.first { !$0.current } } // visual checks
+            #endif
+        }
         .confirmationDialog("Supprimer la version \(confirmDelete?.seq ?? 0) ?", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } })) {
             Button("Supprimer cette version", role: .destructive) { if let v = confirmDelete { Task { await delete(v) } } }
             Button("Annuler", role: .cancel) {}
@@ -88,7 +93,7 @@ struct VersionsTimeline: View {
                                 Text(author(v) + ((v.note ?? "").isEmpty ? "" : " · \(note(v))")).font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textTertiary)
                                 HStack(spacing: SPDTheme.Space.sm) {
                                     if !v.current { Button("Comparer") { compare = v }.accessibilityIdentifier("compare-\(v.seq)") ; Button("Restaurer") { Task { await restore(v) } }.disabled(busy) }
-                                    Button("Télécharger") { Task { if let d = try? await model.api?.fileDetails(item.id), let fv = d.versions.first(where: { $0.id == v.id }) { await model.download([item], version: fv) } } }
+                                    Button { Task { if let d = try? await model.api?.fileDetails(item.id), let fv = d.versions.first(where: { $0.id == v.id }) { await model.download([item], version: fv) } } } label: { Image(systemName: "arrow.down.circle") }.help("Télécharger cette version").accessibilityLabel("Télécharger la version \(v.seq)")
                                     if !v.current { Button(role: .destructive) { confirmDelete = v } label: { Image(systemName: "trash") }.help("Supprimer cette version").accessibilityLabel("Supprimer la version \(v.seq)") }
                                 }.controlSize(.small).padding(.top, 2)
                             }.padding(.bottom, SPDTheme.Space.lg)
@@ -156,15 +161,15 @@ struct VersionCompare: View {
                         ForEach(lines) { l in
                             HStack(spacing: 6) {
                                 Text(l.kind == .added ? "+" : l.kind == .removed ? "−" : " ").frame(width: 12)
-                                Text(l.text.isEmpty ? " " : l.text)
+                                Text(l.text.isEmpty ? " " : l.text).fixedSize(horizontal: true, vertical: false) // a line of a file is a line here: scroll sideways rather than wrap
                             }
                             .font(SPDTheme.Typo.mono).foregroundStyle(l.kind == .same ? SPDTheme.textSecondary : SPDTheme.textPrimary)
                             .padding(.horizontal, SPDTheme.Space.sm).padding(.vertical, 1).frame(maxWidth: .infinity, alignment: .leading)
                             .background(l.kind == .added ? SPDTheme.positive.opacity(0.14) : l.kind == .removed ? SPDTheme.critical.opacity(0.12) : .clear)
                             .accessibilityLabel((l.kind == .added ? "Ajouté : " : l.kind == .removed ? "Retiré : " : "") + l.text)
                         }
-                    }.padding(.vertical, SPDTheme.Space.sm).frame(maxWidth: .infinity, alignment: .leading)
-                }.textSelection(.enabled)
+                    }.padding(.vertical, SPDTheme.Space.sm).frame(minWidth: 480, maxWidth: .infinity, alignment: .leading)
+                }.textSelection(.enabled).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .ready(.images(let a, let b)):
                 HStack(spacing: SPDTheme.Space.md) { picture(a); picture(b) }.padding(SPDTheme.Space.md)
             case .ready(.pdf(let a, let b)):

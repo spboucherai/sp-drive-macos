@@ -85,7 +85,12 @@ struct AskView: View {
             }
         }
         .background(SPDTheme.surface)
-        .task { await session.load(model); focused = true }
+        .task {
+            await session.load(model); focused = true
+            #if SPD_DEV
+            if let q = UserDefaults.standard.string(forKey: "spdAsk"), session.turns.isEmpty { session.question = q; session.ask(model, scope: scope) } // visual checks
+            #endif
+        }
         .accessibilityIdentifier("ask-view")
     }
     private var header: some View {
@@ -126,7 +131,7 @@ struct AskView: View {
                         }
                         .padding(.top, SPDTheme.Space.md)
                     }
-                    ForEach(session.turns) { t in TurnView(model: model, nav: nav, turn: t, onOpen: onOpen).id(t.id) }
+                    ForEach(session.turns) { t in TurnView(model: model, nav: nav, turn: t, onOpen: onOpen, providers: session.providers.value).id(t.id) }
                     Color.clear.frame(height: 1).id("end")
                 }
                 .padding(SPDTheme.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
@@ -179,12 +184,8 @@ struct ModelPicker: View {
             if !off.isEmpty { Section("Non autorisés pour ce compte") { ForEach(off) { Text($0.label) } } }
         } label: {
             if let c = choice, let pr = provider(c.provider) {
-                HStack(spacing: 4) {
-                    Image(systemName: pr.local ? "lock.shield" : "globe").foregroundStyle(pr.local ? SPDTheme.positive : SPDTheme.warning)
-                    Text(model(c)?.label ?? c.model).font(SPDTheme.Typo.caption.weight(.medium))
-                    if let creator = model(c)?.creator { Text("· \(creator)").font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textSecondary) }
-                    Text("via \(pr.label)").font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textTertiary)
-                }
+                // one label: the model, who made it, and — apart — the service that routes to it
+                Label("\(model(c)?.label ?? c.model)\(model(c)?.creator.map { " · conçu par \($0)" } ?? "")  —  via \(pr.label)", systemImage: pr.local ? "lock.shield" : "globe").font(SPDTheme.Typo.caption)
             } else { Text("Choisir un modèle").font(SPDTheme.Typo.caption) }
         }
         .menuStyle(.borderlessButton).fixedSize()
@@ -198,6 +199,12 @@ private struct TurnView: View {
     let nav: Navigator?
     let turn: AskTurn
     var onOpen: (() -> Void)?
+    var providers: AIProviders?
+    /// "Qwen3 30B (Alibaba) · via MacLustr (local)": labels, not identifiers.
+    private func signature(_ d: AIDone) -> String {
+        let pr = providers?.providers.first { $0.id == d.provider }, m = pr?.models.first { $0.id == d.model }
+        return [m.map { $0.label + ($0.creator.map { " (\($0))" } ?? "") } ?? d.model, (pr?.label ?? d.provider).map { "via \($0)" }, d.usage?.outputTokens.map { "\($0) jetons" }].compactMap { $0 }.joined(separator: " · ")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: SPDTheme.Space.sm) {
             Text(turn.question).font(SPDTheme.Typo.bodyStrong).padding(.horizontal, SPDTheme.Space.md).padding(.vertical, SPDTheme.Space.sm)
@@ -231,7 +238,7 @@ private struct TurnView: View {
                     .padding(SPDTheme.Space.md).frame(maxWidth: .infinity, alignment: .leading)
                     .background(SPDTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: SPDTheme.Radius.md, style: .continuous)).overlay(RoundedRectangle(cornerRadius: SPDTheme.Radius.md, style: .continuous).strokeBorder(SPDTheme.hairline))
                 }
-                if let d = turn.done, !turn.streaming { Text([d.model, d.provider.map { "via \($0)" }, d.usage?.outputTokens.map { "\($0) jetons" }].compactMap { $0 }.joined(separator: " · ")).font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textTertiary) }
+                if let d = turn.done, !turn.streaming { Text(signature(d)).font(SPDTheme.Typo.caption).foregroundStyle(SPDTheme.textTertiary) }
             }
         }
     }
