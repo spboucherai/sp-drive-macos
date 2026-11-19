@@ -12,13 +12,17 @@ let package = Package(
     products: [
         .library(name: "SPDriveCore", targets: ["SPDriveCore"]),
         .library(name: "SPDriveSync", targets: ["SPDriveSync"]),
+        // SP Drive 2.0 endpoints. Depends on Foundation only (not on SPDriveCore): the iOS app, which has its own engine, links it too.
+        .library(name: "SPDriveNext", targets: ["SPDriveNext"]),
         .executable(name: "spdrive-cli", targets: ["spdrive-cli"]),
     ],
     targets: [
         .target(name: "SPDriveCore", path: "Core", linkerSettings: [.linkedLibrary("sqlite3")]),
         .target(name: "SPDriveSync", dependencies: ["SPDriveCore"], path: "Sync"),
+        .target(name: "SPDriveNext", path: "Next"),
         .executableTarget(name: "spdrive-cli", dependencies: ["SPDriveCore", "SPDriveSync"], path: "Tools/spdrive-cli"),
         .testTarget(name: "CoreTests", dependencies: ["SPDriveCore", "SPDriveSync"], path: "Tests/CoreTests"),
+        .testTarget(name: "NextTests", dependencies: ["SPDriveNext"], path: "Tests/NextTests"),
     ],
     swiftLanguageModes: [.v6]
 )
