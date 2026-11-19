@@ -23,11 +23,14 @@ public final class APIClient: Sendable {
     public let tokens: TokenStore
     public let session: URLSession
     public let userAgent: String
+    /// `X-SPD-Client` (SP Drive 2.0): `<platform>/<app version> (<os version>)`, sent on every request when set.
+    public let clientHeader: String?
 
     /// - Parameters:
     ///   - baseURL: origin of the server, e.g. https://drive.spboucher.ai. Plain HTTP is refused except for a loopback address.
     ///   - configuration: defaults to an ephemeral configuration without cookies and without cache.
-    public init(baseURL: URL, tokens: TokenStore, userAgent: String, configuration: URLSessionConfiguration? = nil) throws {
+    public init(baseURL: URL, tokens: TokenStore, userAgent: String, configuration: URLSessionConfiguration? = nil, clientHeader: String? = nil) throws {
+        self.clientHeader = clientHeader
         guard let scheme = baseURL.scheme?.lowercased(), let host = baseURL.host else { throw DriveError.local("adresse de serveur invalide") }
         let loopback = host == "127.0.0.1" || host == "localhost" || host == "::1"
         guard scheme == "https" || (scheme == "http" && loopback) else { throw DriveError.local("le serveur doit être joint en HTTPS") }
@@ -75,6 +78,7 @@ public final class APIClient: Sendable {
         r.httpMethod = method
         r.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         r.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let clientHeader { r.setValue(clientHeader, forHTTPHeaderField: "X-SPD-Client") }
         // the server asks every state-changing call without a bearer (sign-in, device linking) for this header; harmless on the others
         r.setValue("1", forHTTPHeaderField: "X-SPD-CSRF")
         if authenticated {

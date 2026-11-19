@@ -204,9 +204,13 @@ public struct NextClient: Sendable {
     /// Opens an event stream and yields its messages until the connection ends (then the stream finishes) or fails
     /// (then it throws). An error answered before the stream starts (401, 429 `too_many_streams`, 4xx of `ai/ask`) is
     /// thrown as `NextError`. Reconnection is the caller's decision.
-    public func events(_ request: URLRequest) -> AsyncThrowingStream<SSEMessage, Error> {
+    /// - Parameter idleTimeout: seconds without a single byte (events or `: ping` comments) after which the stream is
+    ///   declared dead and throws `.offline`. A server that stops without closing the connection is only noticed this
+    ///   way. nil = wait for ever (answers that are not kept alive by pings, e.g. `ai/ask`, rely on the session's timeouts).
+    public func events(_ request: URLRequest, idleTimeout: Double? = nil) -> AsyncThrowingStream<SSEMessage, Error> {
         let session = transport.session
         return AsyncThrowingStream { continuation in
+            let lastByte = LastActivity()
             let task = Task {
                 do {
                     var req = request; req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
@@ -219,15 +223,32 @@ public struct NextClient: Sendable {
                     var parser = SSEParser(), line = [UInt8]()
                     for try await byte in bytes {
                         if byte == 0x0A {
+                            lastByte.touch()
                             if line.last == 0x0D { line.removeLast() }
                             if let m = parser.feed(line: String(decoding: line, as: UTF8.self)) { continuation.yield(m) }
                             line.removeAll(keepingCapacity: true)
                         } else { line.append(byte) }
                     }
                     continuation.finish()
-                } catch { continuation.finish(throwing: NextError.wrap(error)) }
+                } catch { continuation.finish(throwing: lastByte.expired ? NextError.offline("event stream silent") : NextError.wrap(error)) }
             }
-            continuation.onTermination = { _ in task.cancel() }
+            let watchdog = idleTimeout.map { limit in
+                Task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: UInt64(min(limit / 4, 5) * 1e9))
+                        if lastByte.idle > limit { lastByte.expire(); task.cancel(); return }
+                    }
+                }
+            }
+            continuation.onTermination = { _ in task.cancel(); watchdog?.cancel() }
         }
     }
+}
+/// When the last line of a stream arrived (shared between the reader and its watchdog).
+final class LastActivity: @unchecked Sendable {
+    private let lock = NSLock(); private var at = Date(); private var dead = false
+    func touch() { lock.withLock { at = Date() } }
+    var idle: TimeInterval { lock.withLock { Date().timeIntervalSince(at) } }
+    func expire() { lock.withLock { dead = true } }
+    var expired: Bool { lock.withLock { dead } }
 }

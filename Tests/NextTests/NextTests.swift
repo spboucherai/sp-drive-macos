@@ -3,6 +3,7 @@
 // Description: Tests of SPDriveNext against the real local SP Drive 2.0 backend (Scripts/backend-dev.sh start): real HTTP, two real accounts, the content index and the event stream of the server. The AI provider of the testbed is a FAKE OpenAI-compatible server (Scripts/fake-ai.mjs): these tests prove the wire protocol, not a model.
 import CryptoKit
 import Foundation
+import Network
 import XCTest
 @testable import SPDriveNext
 
@@ -92,6 +93,33 @@ final class WireTests: XCTestCase {
         XCTAssertNotNil(NextClient.parseDate("2026-11-19T18:44:54.900Z")); XCTAssertNotNil(NextClient.parseDate("2026-11-19T18:44:54Z")); XCTAssertNotNil(NextClient.parseDate("2026-11-19"))
         let scope = String(decoding: try NextClient.encoder.encode(AIAskRequest(scope: .folder("root"), question: "q")), as: UTF8.self)
         XCTAssertTrue(scope.contains("\"scope\":{\"folderId\":\"root\"}"))
+    }
+}
+
+/// A server that says hello and then goes silent without closing the connection (what a hung or half-dead server looks like).
+final class SilentStreamTests: XCTestCase {
+    func testAStreamThatGoesSilentIsDeclaredDeadByTheIdleTimeout() async throws {
+        let listener = try NWListener(using: .tcp, on: .any)
+        let kept = Collected<NWConnection>()
+        listener.newConnectionHandler = { c in
+            kept.add(c); c.start(queue: .global())
+            c.receive(minimumIncompleteLength: 1, maximumLength: 4096) { _, _, _, _ in
+                c.send(content: Data("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\n\r\nevent: hello\ndata: {\"head\":7}\n\n".utf8), completion: .contentProcessed { _ in })
+            }
+        }
+        let ready = Collected<Bool>()
+        listener.stateUpdateHandler = { if case .ready = $0 { ready.add(true) } }
+        listener.start(queue: .global())
+        defer { listener.cancel(); kept.all.forEach { $0.cancel() } }
+        for _ in 0..<100 where ready.all.isEmpty { try await Task.sleep(nanoseconds: 20_000_000) }
+        let port = try XCTUnwrap(listener.port)
+        let client = NextClient(BasicNextTransport(baseURL: URL(string: "http://127.0.0.1:\(port.rawValue)")!, clientHeader: nil) { "t" })
+        var seen: [SyncEvent] = []
+        let t0 = Date()
+        do { for try await e in client.syncEvents(idleTimeout: 1.5) { seen.append(e) }; XCTFail("a silent stream must not end quietly") }
+        catch { XCTAssertEqual((error as? NextError)?.code, "offline") }
+        XCTAssertEqual(seen, [.hello(head: 7)])
+        let waited = Date().timeIntervalSince(t0); XCTAssertGreaterThan(waited, 1.4); XCTAssertLessThan(waited, 4)
     }
 }
 

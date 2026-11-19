@@ -36,9 +36,13 @@ server_env() {
   export SPD_APPLE_APP_IDS="3YM54G49SN.ai.spboucher.spdrive,3YM54G49SN.ai.spboucher.spdrive.ios" SPD_DEFAULT_QUOTA_GB=5
 }
 stop_web() {
-  [ -f "$STATE/web.pid" ] && kill "$(cat "$STATE/web.pid")" 2>/dev/null || true; rm -f "$STATE/web.pid"
+  local old=""; [ -f "$STATE/web.pid" ] && old="$(cat "$STATE/web.pid")"
+  [ -n "$old" ] && kill "$old" 2>/dev/null || true; rm -f "$STATE/web.pid"
   local p; p="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"; [ -n "$p" ] && kill $p 2>/dev/null || true
-  for _ in $(seq 1 40); do lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 || return 0; sleep 0.1; done
+  for _ in $(seq 1 40); do lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep 0.1; done
+  # a server told to stop keeps running for as long as an event stream is open (and keeps pinging it): end it for good,
+  # by its own PID only
+  for q in $old $p; do if kill -0 "$q" 2>/dev/null; then sleep 0.3; kill -9 "$q" 2>/dev/null || true; fi; done
 }
 web() {
   server_env; cd "$BED"

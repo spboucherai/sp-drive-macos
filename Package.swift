@@ -18,7 +18,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "SPDriveCore", path: "Core", linkerSettings: [.linkedLibrary("sqlite3")]),
-        .target(name: "SPDriveSync", dependencies: ["SPDriveCore"], path: "Sync"),
+        .target(name: "SPDriveSync", dependencies: ["SPDriveCore", "SPDriveNext"], path: "Sync"),
         .target(name: "SPDriveNext", path: "Next"),
         .executableTarget(name: "spdrive-cli", dependencies: ["SPDriveCore", "SPDriveSync"], path: "Tools/spdrive-cli"),
         .testTarget(name: "CoreTests", dependencies: ["SPDriveCore", "SPDriveSync"], path: "Tests/CoreTests"),

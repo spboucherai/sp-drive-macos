@@ -38,6 +38,8 @@ public actor SyncEngine {
     public static let pollRange: ClosedRange<Double> = 10...120
     private var interval = SyncEngine.pollRange.lowerBound
     private var eventSource: RemoteEventSource?
+    private var onNotify: (@Sendable (String) async -> Void)?
+    private func notified(_ kind: String) async { await onNotify?(kind) }
     private var listener: EventListener?
     private var channelWatch: Task<Void, Never>?
     private let eventPollInterval: Double
@@ -60,10 +62,13 @@ public actor SyncEngine {
         eventSource = source
         if listener != nil { await stopListening(); await startListening() }
     }
+    /// Called for each `notify` event of the stream (a notification was created for the account).
+    public func setNotifyHandler(_ h: (@Sendable (String) async -> Void)?) { onNotify = h }
     private func startListening() async {
         guard listener == nil else { return }
         let api = self.api
-        let l = EventListener(source: eventSource, pollInterval: eventPollInterval, head: { try await api.syncCursor().head }, onChange: { [weak self] _ in await self?.poke() })
+        let l = EventListener(source: eventSource, pollInterval: eventPollInterval, head: { try await api.syncCursor().head },
+                              onNotify: { [weak self] kind in await self?.notified(kind) }, onChange: { [weak self] _ in await self?.poke() })
         listener = l
         channelWatch = Task { [weak self] in for await c in await l.channels() { await self?.channelChanged(c) } }
         await l.start()

@@ -20,13 +20,14 @@ extension NextClient {
     // MARK: §3 Sync events
     /// One connection to `GET /sync/events`. Finishes when the server closes it, throws when it fails; reconnecting
     /// (exponential back-off with jitter, 1 s → 60 s) and the polling fallback are the caller's.
-    public func syncEvents() -> AsyncThrowingStream<SyncEvent, Error> {
+    /// - Parameter idleTimeout: the server pings every 25 s; a stream silent for longer than this is treated as dead.
+    public func syncEvents(idleTimeout: Double = 60) -> AsyncThrowingStream<SyncEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     struct Head: Decodable { var head: Int64 }; struct Kind: Decodable { var kind: String }
                     let req = try await request("GET", "/sync/events")
-                    for try await m in events(req) {
+                    for try await m in events(req, idleTimeout: idleTimeout) {
                         let d = Data(m.data.utf8)
                         switch m.event {
                         case "hello": if let h = try? JSONDecoder().decode(Head.self, from: d) { continuation.yield(.hello(head: h.head)) }

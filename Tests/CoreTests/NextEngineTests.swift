@@ -173,6 +173,46 @@ final class EngineEventTests: LiveCase {
     }
 }
 
+/// The real stream of the 2.0 server (SSE through SPDriveNext) plugged into the engine.
+final class LiveEventStreamTests: LiveCase {
+    func testRealStreamBringsARemoteChangeAtOnceAndPollingCoversAKilledStream() async throws {
+        let s = try store()
+        let engine = SyncEngine(api: api, store: s, network: NetworkMonitor(), workDirectory: dir.appendingPathComponent("work"), deviceName: "Tests", eventPollInterval: 2)
+        await engine.setEventSource(NextEventSource(api: api, idleTimeout: 30)) // above the server's 25 s ping, so a healthy stream is never cut
+        await engine.start()
+        let fid = folder.id
+        try await waitUntil { (try? s.item(fid)) != nil }
+        try await waitUntil(timeout: 10, "stream live") { await engine.currentStatus().events == .stream }
+        try await waitUntil { await engine.currentStatus().phase == .idle }
+        try await Task.sleep(nanoseconds: 1_200_000_000)
+        // another client of the account changes something: the Mac learns of it without being poked and well before any poll
+        let other = try Backend.api()
+        var t0 = Date()
+        let made = try await other.createFolder(parent: folder.id, name: "poussé par le serveur")
+        try await waitUntil(timeout: 4, "pushed change mirrored") { (try? s.item(made.id)) != nil }
+        let pushed = Date().timeIntervalSince(t0)
+        XCTAssertLessThan(pushed, 1.9, "faster than the 2 s poll of this test (and than the 30 s poll of the app): it came from the stream")
+        // the server goes away. A server stopped with SIGTERM may leave the open stream hanging without closing it: only the
+        // silence (no ping) gives it away. Within the idle timeout the listener declares the stream dead and polls.
+        try Backend.serverDown()
+        var up = false; defer { if !up { try? Backend.serverUp() } }
+        let tDown = Date()
+        try await waitUntil(timeout: 45, "fallback to polling") { await engine.currentStatus().events == .polling }
+        let noticed = Date().timeIntervalSince(tDown)
+        try Backend.serverUp(); up = true
+        // while the stream is still reconnecting (back-off), a change is found by the poll
+        t0 = Date()
+        let later = try await other.createFolder(parent: folder.id, name: "vu après la coupure")
+        try await waitUntil(timeout: 15, "change after the outage mirrored") { (try? s.item(later.id)) != nil }
+        // and the stream comes back by itself
+        try await waitUntil(timeout: 70, "stream live again") { await engine.currentStatus().events == .stream }
+        let again = try await other.createFolder(parent: folder.id, name: "poussé de nouveau")
+        try await waitUntil(timeout: 4) { (try? s.item(again.id)) != nil }
+        print(String(format: "MEASURE sse: pushed change mirrored in %.2f s; dead stream noticed after %.1f s", pushed, noticed))
+        await engine.stop()
+    }
+}
+
 final class QueuePolicyTests: LiveCase {
     private func finishOrder(_ q: TransferQueue) -> (Box<[String]>, Task<Void, Never>) {
         let order = Box<[String]>([])
