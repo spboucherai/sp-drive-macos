@@ -126,7 +126,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         do {
             let s = try await api.authState()
             if s.authenticated, let user = s.user { await enter(user, quota: s.quota) }
-            else { try? AppEnvironment.tokens.deleteToken(); loginError = "La session de cet appareil a été fermée. Reconnectez-vous."; phase = .signedOut }
+            else { try? AppEnvironment.tokens.deleteToken(); loginError = "La session de cet appareil a été fermée. Reconnectez-vous."; phase = .signedOut; autoLinkIfAsked() }
         } catch {
             // no server right now: the person keeps working on what this Mac already has
             if let data = AppEnvironment.defaults.data(forKey: "account"), let cached = try? JSONDecoder().decode(Account.self, from: data), AppEnvironment.currentAccount == cached.id { await enter(cached, quota: nil) }
