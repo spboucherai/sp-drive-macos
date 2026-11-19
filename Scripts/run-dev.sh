@@ -6,7 +6,7 @@
 # Usage: Scripts/run-dev.sh [--shot out.png] [--wait seconds] [--keep] [--link] [-- extra app arguments…]
 #   --link    sign the app in through the device-code flow (approved by the test account with Scripts/backend-dev.sh)
 #   App arguments (development variant only): -spdSection drive|recent|shared|portals|favorites|offline|downloads|transfers|conflicts|trash|storage,
-#   -spdGrid YES, -spdFolder <name>, -spdSearch <text>, -spdSelect <name>, -spdSelectFirst YES, -spdInspector YES, -spdSheet share|versions|portal|rename|move|newFolder
+#   -spdGrid YES, -spdFolder <name>, -spdPath <a/b/c>, -spdPalette YES, -spdSearch <text>, -spdSelect <name>, -spdSelectFirst YES, -spdInspector YES, -spdSheet share|versions|portal|rename|move|newFolder
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="$HOME/Library/Developer/SPDrive/DerivedData/Build/Products/Debug/SP Drive Dev.app"; BIN="$APP/Contents/MacOS/SP Drive Dev"

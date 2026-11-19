@@ -12,7 +12,7 @@ struct InspectorView: View {
     var body: some View {
         Group {
             if let item = items.first, items.count == 1 { SingleInspector(model: model, nav: nav, item: item) }
-            else if items.isEmpty { SPDEmptyState(symbol: "info.circle", title: "Aucune sélection", message: "Sélectionnez un élément pour voir ses informations, ses versions et ses partages.") }
+            else if items.isEmpty { SPDEmptyState(symbol: "info.circle", title: "Aucune sélection", message: "Sélectionnez un élément pour voir ses informations, ses versions et ses partages.", width: 220) }
             else { multiple }
         }
         .background(SPDTheme.surface)
@@ -100,7 +100,8 @@ private struct SingleInspector: View {
     }
     private func action(_ title: String, _ symbol: String, _ run: @escaping () -> Void) -> some View {
         Button(action: run) {
-            VStack(spacing: 3) { Image(systemName: symbol).font(.system(size: 15)); Text(title).font(SPDTheme.Typo.caption).lineLimit(1) }
+            VStack(spacing: 3) { Image(systemName: symbol).font(.system(size: 15)); Text(title).font(SPDTheme.Typo.caption).lineLimit(1).minimumScaleFactor(0.75) }
+                .padding(.horizontal, 2)
                 .frame(maxWidth: .infinity).padding(.vertical, SPDTheme.Space.sm)
                 .background(SPDTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: SPDTheme.Radius.md, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: SPDTheme.Radius.md, style: .continuous).strokeBorder(SPDTheme.hairline))

@@ -185,6 +185,7 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
             #if SPD_DEV
             if UserDefaults.standard.bool(forKey: "spdSelfTest") { Task { await DevSelfTest.run(self) } }
             if UserDefaults.standard.bool(forKey: "spdMenuProbe") { Task { await DevSelfTest.menuProbe(self) } }
+            if UserDefaults.standard.bool(forKey: "spdPerf") { Task { await DevSelfTest.perfProbe(self) } }
             if UserDefaults.standard.bool(forKey: "spdTour") { Task { await DevTour.run(self, into: AppEnvironment.containerURL.appendingPathComponent("tour")) } } // inside the sandbox
             #endif
         } catch { loginError = "Impossible d’ouvrir la base locale : \(error.localizedDescription)"; phase = .signedOut }
@@ -196,6 +197,10 @@ struct Banner: Equatable, Identifiable { let id = UUID(); var text: String; var 
         if let s = d.string(forKey: "spdSection"), let section = SidebarItem(rawValue: s), section.isAvailable { nav.section = section }
         if d.object(forKey: "spdGrid") != nil { settings.gridView = d.bool(forKey: "spdGrid") }
         if let name = d.string(forKey: "spdFolder"), let root = rootID, let f = children(of: root).first(where: { $0.name == name }) { nav.folderID = f.id }
+        if let path = d.string(forKey: "spdPath"), var at = rootID { // "Atelier/Photos de chantier"
+            for name in path.split(separator: "/") { if let f = children(of: at).first(where: { $0.name == name && $0.isFolder }) { at = f.id } }
+            if at != rootID { nav.folderID = at }
+        }
         if let q = d.string(forKey: "spdSearch") { nav.searchText = q }
         let items = nav.section == .trash ? trash() : children(of: nav.folderID ?? rootID ?? "")
         let target = d.string(forKey: "spdSelect").flatMap { n in items.first { $0.name == n } } ?? (d.bool(forKey: "spdSelectFirst") ? items.first : nil)

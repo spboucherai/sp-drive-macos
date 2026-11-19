@@ -200,19 +200,21 @@ struct SPDEmptyState<Actions: View>: View {
     let symbol: String
     let title: String
     let message: String
+    /// Width of the text column (a fixed width: a text that sizes itself from its container inside the split view's detail made AppKit loop on constraints).
+    var width: CGFloat = 420
     @ViewBuilder var actions: () -> Actions
     var body: some View {
         VStack(spacing: SPDTheme.Space.md) {
             Image(systemName: symbol).font(.system(size: 34, weight: .light)).foregroundStyle(SPDTheme.brand).symbolRenderingMode(.hierarchical)
                 .frame(width: 72, height: 72).background(SPDTheme.brandWash, in: Circle()).accessibilityHidden(true)
-            Text(title).font(SPDTheme.Typo.display).foregroundStyle(SPDTheme.textPrimary).multilineTextAlignment(.center)
-            Text(message).font(SPDTheme.Typo.body).foregroundStyle(SPDTheme.textSecondary).multilineTextAlignment(.center).frame(maxWidth: 420).fixedSize(horizontal: false, vertical: true)
+            Text(title).font(width < 300 ? SPDTheme.Typo.title : SPDTheme.Typo.display).foregroundStyle(SPDTheme.textPrimary).multilineTextAlignment(.center).lineLimit(2).frame(width: width)
+            Text(message).font(SPDTheme.Typo.body).foregroundStyle(SPDTheme.textSecondary).multilineTextAlignment(.center).lineLimit(6).frame(width: width)
             HStack(spacing: SPDTheme.Space.sm) { actions() }.padding(.top, SPDTheme.Space.xs)
         }
-        .padding(SPDTheme.Space.xxl).frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(width < 300 ? SPDTheme.Space.md : SPDTheme.Space.xxl).frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
     }
 }
 extension SPDEmptyState where Actions == EmptyView {
-    init(symbol: String, title: String, message: String) { self.init(symbol: symbol, title: title, message: message) { EmptyView() } }
+    init(symbol: String, title: String, message: String, width: CGFloat = 420) { self.init(symbol: symbol, title: title, message: message, width: width) { EmptyView() } }
 }

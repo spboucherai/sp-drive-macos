@@ -3,6 +3,7 @@
 // Description: Development variant only: the signed, sandboxed application exercises its own actions against the test backend — journal, transfer queue, downloads into the Downloads folder, versions, trash, share links, keychain — and writes a report. Nothing is simulated: every check reads the server or the disk.
 #if SPD_DEV
 import AppKit
+import QuartzCore
 import CryptoKit
 import Foundation
 import UniformTypeIdentifiers
@@ -328,6 +329,29 @@ enum DevSelfTest {
         walk(NSApp.mainMenu, 0)
         NSApp.deactivate()
         try? lines.joined(separator: "\n").write(to: AppEnvironment.containerURL.appendingPathComponent("menuprobe.txt"), atomically: true, encoding: .utf8)
+    }
+
+    /// Times how long the window takes to show a large folder (from the navigation to the frame being committed), in list and in grid.
+    static func perfProbe(_ model: AppModel) async {
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        guard let root = model.rootID, let big = model.children(of: root).first(where: { $0.name == "Mille fichiers" }) else { return }
+        let nav = model.nav
+        var lines: [String] = ["items \(model.children(of: big.id).count)"]
+        func frame() async { await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in DispatchQueue.main.async { CATransaction.setCompletionBlock { c.resume() }; CATransaction.flush() } } }
+        for grid in [false, true] {
+            model.settings.gridView = grid
+            var samples: [Double] = []
+            for _ in 0..<5 {
+                nav.go(to: nil); await frame(); try? await Task.sleep(nanoseconds: 500_000_000)
+                let t = CFAbsoluteTimeGetCurrent()
+                nav.go(to: big.id); await frame()
+                samples.append((CFAbsoluteTimeGetCurrent() - t) * 1000)
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            lines.append("\(grid ? "grid" : "list") ms: " + samples.map { String(format: "%.0f", $0) }.joined(separator: " ") + String(format: " (median %.0f)", samples.sorted()[2]))
+        }
+        model.settings.gridView = false; nav.go(to: nil)
+        try? lines.joined(separator: "\n").write(to: AppEnvironment.containerURL.appendingPathComponent("perf.txt"), atomically: true, encoding: .utf8)
     }
 }
 #endif

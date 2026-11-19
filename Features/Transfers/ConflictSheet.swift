@@ -24,7 +24,7 @@ struct ConflictSheet: View {
                 Text("Ce fichier a été modifié sur ce Mac pendant qu’un autre appareil le modifiait aussi. SP Drive a gardé les deux : choisissez laquelle doit porter le nom d’origine.")
                     .font(SPDTheme.Typo.callout).foregroundStyle(SPDTheme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
-            .padding(SPDTheme.Space.xl)
+            .padding([.horizontal, .top], SPDTheme.Space.xl).padding(.bottom, SPDTheme.Space.lg)
             HStack(alignment: .top, spacing: SPDTheme.Space.lg) {
                 side("Sur ce Mac", "laptopcomputer", mine, other: server, missing: "La copie de ce Mac n’existe plus sur SP Drive.", id: "conflict-mine")
                 side("Sur le serveur", "server.rack", server, other: mine, missing: "Le fichier d’origine n’existe plus sur SP Drive.", id: "conflict-server")
@@ -50,7 +50,7 @@ struct ConflictSheet: View {
             }
             .padding(.horizontal, SPDTheme.Space.lg).padding(.bottom, SPDTheme.Space.lg)
         }
-        .frame(width: 720, height: 600)
+        .frame(width: 720, height: 640)
         .background(SPDTheme.surface)
         .task { await load() }
         .accessibilityIdentifier("conflict-sheet")
@@ -128,7 +128,7 @@ private struct ConflictPreview: View {
             if let image { Image(nsImage: image).resizable().aspectRatio(contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: SPDTheme.Radius.sm, style: .continuous)).padding(SPDTheme.Space.sm).spdElevation(.e1) }
             else { ItemIcon(item: item, size: 72) }
         }
-        .frame(height: 170).frame(maxWidth: .infinity)
+        .frame(height: 140).frame(maxWidth: .infinity)
         .task(id: ThumbnailStore.key(item)) {
             if let img = await model.thumbnails.image(for: item) { image = img; return }
             guard item.size <= 30 * 1024 * 1024, let url = try? await model.localCopy(of: item, inContainer: true) else { return }
