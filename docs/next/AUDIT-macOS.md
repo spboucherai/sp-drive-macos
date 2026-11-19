@@ -4,7 +4,7 @@ File: docs/next/AUDIT-macOS.md
 Author: Simon-Pierre Boucher
 Contact: contact@spboucher.ai
 -->
-# Audit of the macOS client — baseline 1.0 and state after phase 1 of 2.0
+# Audit of the macOS client — baseline 1.0, phase 1 and phase 2 of 2.0
 
 Date: 2026-11-19. Machine: MacBook Pro (Mac17,6), macOS 27.0, Xcode 27.2. Branch `next`.
 Everything below was run on the **development variant** ("SP Drive Dev", bundle `ai.spboucher.spdrive.dev`) against the
@@ -151,7 +151,7 @@ How to read "verified": **T** = Swift package test against the real local backen
 | Desktop Drop Zone (`NSPanel`, non-activating, floating, movable, dims when idle, destination setting) | Always-on-top windows are intrusive: off by default, 72-pt tile, 55 % opacity at rest, never key. A floating panel is visible in every Space and over full-screen apps — some people will want it only on the desktop; not offered yet | A (off by default; shows without becoming key; hides). **No real drag onto it** |
 | Core Spotlight, metadata only (title, kind, dates, path, size, extension) | With the Finder location on, macOS already indexes the same files: the app index would show duplicates. Hence off by default and described as useful only without the Finder location. No tags exist in the mirror, so none are indexed. Removed on switch-off and on sign-out | A (398 items indexed, found by name through `CSSearchQuery`, then gone after removal; attribute set has no text content). **Opening a result from the Spotlight window not verified** |
 
-## 3. What was not done in phase 1
+## 3. What was not done in phase 1 (see §7 for what phase 2 closed)
 
 - English localisation (nothing to build on: 1.0 has none).
 - `X-SPD-Client` header of contract §2 (belongs with the `NextTransport` of phase 2).
@@ -192,3 +192,59 @@ How to read "verified": **T** = Swift package test against the real local backen
 - A pre-empted transfer that finishes at the very instant it is pre-empted may be run a second time; the server-side
   upload session and completion are idempotent, so no duplicate file results (not provoked in a test).
 - The open conflict and the test folders left in the **test** account by the scenario are harmless and local.
+
+## 7. Phase 2 (2026-11-19, later the same day) — the 2.0 server
+
+Backend: local testbed on `sp-drive.git` branch `next` @ 0742bf2 (all eleven features listed by `GET /meta`), two test
+accounts, a **fake** OpenAI-compatible AI provider (`Scripts/fake-ai.mjs`) configured as `maclustr`. **No real model
+and no real key were used anywhere**; what is verified about AI is the protocol and the interface, not an answer.
+
+### Totals
+
+| Suite | End of phase 1 | Now |
+|---|---|---|
+| `CoreTests` | 60 / 60 | **61 / 61** (+ real SSE stream in the engine) |
+| `NextTests` (new package) | — | **14 / 14** |
+| In-app self-test | 45 / 45 | **65 / 65** (one earlier run right after device linking stopped at 18 / 20; not reproduced) |
+| Finder scenario | 22 / 22 | **22 / 22** |
+| Tour | 27 screens | **36 screens**, no crash |
+| Release build + `verify-release.sh` | — | 2.0.0 (2), universal, **32 checks, 0 failed**; not notarized, not installed, not tagged |
+
+### What phase 2 closed from §2–§3
+
+| Item | Now |
+|---|---|
+| Real SSE client | `SPDriveNext.syncEvents()` + `NextEventSource` in the engine. T: pushed change mirrored in 0.10 s; stream killed → polling → reconnection. A: 0.47 s in the app |
+| `X-SPD-Client` | sent by `APIClient` (app and extension) and by `SPDriveNext`. N, A: the session is stored as `macos/2.0.0 (27.0)` |
+| Dark appearance | looked at: `Q…T-dark-*.png` (the app's own appearance forced with the dev argument `-spdAppearance dark`; writing `AppleInterfaceStyle` in the bundle's defaults domain had no effect on the sandboxed app; the system setting was not touched) |
+| Collections, Partagés avec moi placeholders | real sections, shown when the server offers them |
+| Still open | English localisation; Increase Contrast and Reduce Motion not looked at; contrast ratios not computed; pointer gestures (real drags, Finder actions, status-item popover) not performed |
+
+### Verified / not verified, per 2.0 feature
+
+See the second part of `docs/FEATURE_MATRIX.md` (one line per feature, with how). In short, **verified by tests and the
+in-app self-test**: capabilities, client header, event stream and fallback, content search with highlights, semantic
+search availability, AI ask stream with sources and the "nothing retrieved" state (fake provider), collections,
+activity, versions and text comparison, storage overview / drill-down / duplicates, members and roles, shared-with-me
+browsing and uploads by role (403 for a depositor listing), QR code, devices, administration.
+**Built but not exercised on screen**: clicking a citation, the "Demander à mon Drive" window, the external-provider
+switch, saving from the rule editor, gestures inside a shared folder, image / PDF side-by-side comparison, storage
+drill-down by click and the per-file trash button of duplicates, the devices list in Settings, creating a portal from
+the extended sheet (the request body was checked against the server directly), a role change while a shared folder is open.
+**No screen**: AI suggestions (`ai/suggest` exists in the package only).
+
+### Findings of phase 2
+
+1. **Backend — a server told to stop keeps its event streams open.** After SIGTERM the API process stays alive for as
+   long as an SSE connection is open and keeps pinging it, so a client cannot tell. The test script now ends the
+   process by PID; the client has an idle watchdog (60 s without a byte = dead stream). Suggested: close event streams
+   on shutdown.
+2. **Fixed by the backend during the phase**: thumbnail readiness now advances `rev` (API-NEXT D13) — the client
+   workaround of phase 1 is kept; chunk requests of uploads have their own budget (D14).
+3. `SPDriveCore` gained one optional initializer parameter (`APIClient.init(…, clientHeader:)`) and `SPDriveSync` now
+   depends on `SPDriveNext` (for `NextEventSource`). Both additive.
+4. Release build needs **no new target and no new entitlement**: the two Developer ID profiles used by the release
+   pipeline (`SP Drive Developer ID`, `SP Drive File Provider Developer ID`, both valid to 2044) covered the 2.0 bundle,
+   and the two `.dev` profiles covered every Debug build of the day.
+5. `dist/SP Drive.app` is now the **unnotarized 2.0.0 (2)** build (the pipeline replaces it); `dist/SPDrive-1.0.0.dmg`
+   is untouched.

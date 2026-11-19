@@ -21,7 +21,7 @@ Finder (File Provider répliqué), une application SwiftUI, un moteur de synchro
 **Auteur : [Simon-Pierre Boucher](https://www.spboucher.ai)**
 
 [![serveur](https://img.shields.io/website?url=https%3A%2F%2Fdrive.spboucher.ai&label=serveur%20drive.spboucher.ai&style=for-the-badge&up_message=en%20ligne&down_message=hors%20ligne)](https://drive.spboucher.ai)
-![version](https://img.shields.io/badge/version-1.0.0%20(1)-6a3df0?style=for-the-badge)
+![version](https://img.shields.io/badge/version-2.0.0%20(2)%20·%20branche%20next-6a3df0?style=for-the-badge)
 ![plateforme](https://img.shields.io/badge/plateforme-macOS%2014%2B%20%C2%B7%20universelle-000000?style=for-the-badge&logo=apple&logoColor=white)
 ![licence](https://img.shields.io/badge/licence-tous%20droits%20r%C3%A9serv%C3%A9s-lightgrey?style=for-the-badge)
 ![author](https://img.shields.io/badge/author-Simon--Pierre%20Boucher-0A66C2?style=for-the-badge)
@@ -91,6 +91,31 @@ Finder (File Provider répliqué), une application SwiftUI, un moteur de synchro
 - [Licence](#-licence)
 
 ---
+
+## 🚀 SP Drive 2.0 — état de la branche `next` (2026-11-19)
+
+> **Non livrée.** La version distribuée et notarisée reste la 1.0.0 (`main`, étiquette `v1.0.0`). La branche `next` porte la
+> 2.0.0 (2) : construite en Release, signée Developer ID et vérifiée (`Scripts/verify-release.sh` : 32 contrôles, 0 échec),
+> **ni notarisée, ni installée, ni étiquetée**. Le reste de ce README décrit la 1.0 et reste vrai pour ce qu'il couvre ;
+> l'état exact de la 2.0, fonction par fonction, est dans [`docs/next/AUDIT-macOS.md`](docs/next/AUDIT-macOS.md).
+
+| | 2.0 |
+|---|---|
+| Serveur | SP Drive 2.0 (`sp-drive.git`, branche `next`) ; face à un serveur 1.0 l'app masque ce qu'il n'offre pas (`GET /meta`) |
+| Nouveau paquet | **`SPDriveNext`** (`Next/`, Foundation seulement, macOS 14 + iOS 17) : tout ce que l'API 2.0 ajoute, partagé avec l'app iOS |
+| Synchronisation | flux d'événements du serveur (SSE) branché sur le moteur, repli sur un sondage de 30 s, reprise après coupure ; concurrence adaptative 1–6, priorités, reprise après `SIGKILL`, économie d'énergie |
+| Interface | système de design v2 (`docs/next/DESIGN-SYSTEM-V2.md`), grille à vraies vignettes, inspecteur, palette de commandes ⌘K, plusieurs fenêtres, Coup d'œil, glisser-déposer entrant et sortant, centre de transferts, Command Center de la barre de menus |
+| Recherche | noms **et contenu** des documents (passages surlignés), recherche par le sens quand le serveur a son modèle |
+| SP Drive AI | questions à un document, un dossier ou tout le Drive ; réponse en flux avec sources numérotées ; choix du modèle. **Aucun vrai modèle n'a été exercé** : les essais utilisent un faux fournisseur local |
+| Organisation | collections intelligentes (règles), activité, versions en frise avec comparaison, centre de stockage (types, dossiers, croissance, doublons) |
+| Partage | membres et rôles sur un dossier, espaces de travail, « Partagés avec moi », code QR des liens, portails de dépôt complets |
+| Compte | appareils connectés (plateforme, version), consentement aux fournisseurs d'IA externes, vue d'administration pour les administrateurs |
+| Finder | état « partagé », pastilles, actions du menu contextuel (déclarées et évaluées par le système ; **exécution non vérifiée**) |
+| Langue | français seulement (pas de localisation anglaise, en 1.0 comme en 2.0) |
+
+Essais du 2026-11-19 (variante de test, backend 2.0 local) : paquets Swift **75 / 75** (61 + 14 pour `SPDriveNext`),
+auto-vérification de l'app **65 / 65**, scénario Finder **22 / 22**, tournée de 36 écrans sans plantage. Captures de la
+fenêtre : [`docs/next/shots/`](docs/next/shots/).
 
 ## 🎯 Aperçu
 
@@ -454,7 +479,8 @@ Aucun résultat n'est simulé : chaque test lit le serveur ou le disque.
 
 | Suite | Résultat | Commande |
 |---|---|---|
-| Paquets Swift — 15 unitaires + 27 d'intégration contre le backend réel local | **42 / 42** | `Scripts/t.sh` |
+| Paquets Swift — 15 unitaires + 27 d'intégration contre le backend réel local (1.0) | **42 / 42** | `Scripts/t.sh` |
+| Paquets Swift de la branche `next` (2.0) — `CoreTests` 61 + `NextTests` 14, backend 2.0 local | **75 / 75** | `Scripts/t.sh` |
 | Auto-vérification de l'app signée Developer ID, sandboxée | **19 / 19** | `Scripts/run-dev.sh --keep -- -spdSelfTest YES` |
 | Tournée des écrans | 22 écrans et feuilles sans plantage | `Scripts/run-dev.sh --keep -- -spdTour YES` |
 | Scénario par le Finder (variante de test) | **22 / 22** | `Scripts/finder-scenario.sh` |

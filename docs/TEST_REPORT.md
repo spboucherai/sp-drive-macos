@@ -4,7 +4,31 @@ File: docs/TEST_REPORT.md
 Author: Simon-Pierre Boucher
 Contact: contact@spboucher.ai
 -->
-# Rapport de tests — 2026-11-18
+# Rapport de tests — SP Drive 2.0 (branche `next`), 2026-11-19
+
+Même machine. Variante de test « SP Drive Dev » contre le backend **2.0** local (`Scripts/backend-dev.sh start` :
+clone de `sp-drive.git` branche `next` @ 0742bf2, base `sp_drive_macdev`, port 8665, deux comptes, aide locale
+d'extraction de texte construite). Le fournisseur d'IA est **faux** (`Scripts/fake-ai.mjs`, protocole OpenAI) :
+aucun vrai modèle, aucune vraie clé. La production n'a pas été touchée.
+
+| Suite | Résultat |
+|---|---|
+| `Scripts/t.sh` — `CoreTests` | **61 / 61** (42 de la 1.0 + 18 politiques du moteur 2.0 + flux SSE réel) |
+| `Scripts/t.sh` — `NextTests` (`SPDriveNext`, HTTP réel) | **14 / 14** : capacités, sessions et en-tête client, flux d'événements, flux muet coupé par le délai, recherche et extraits, recherche par le sens, IA (faux fournisseur), partage privé à deux comptes par rôle, collections, activité, stockage, doublons, versions, historique d'envois, administration |
+| Auto-vérification de l'app (`-spdSelfTest YES`) | **65 / 65** au deuxième lancement. Le premier, juste après la liaison de l'appareil, a rendu 18 / 20 (« fenêtre principale » et épinglage) puis s'est arrêté : non reproduit |
+| Tournée (`-spdTour YES`) | 36 écrans, aucun plantage |
+| Scénario Finder (`Scripts/finder-scenario.sh`) | **22 / 22** |
+| `Scripts/release.sh` puis `Scripts/verify-release.sh` | archive Release 2.0.0 (2), x86_64 + arm64, **32 contrôles, 0 échec**. **Pas de notarisation, pas d'installation, pas d'étiquette** |
+
+Mesures : changement poussé par le flux reflété en 0,10 s (essai du moteur) et 0,47 s (dans l'app) ; plafond 1 Mio/s :
+envoi de 4 Mio en 4,0 s ; reprise après `SIGKILL` : 5,2 Mo sur 12,6 déjà sur le serveur, même session terminée.
+
+Détail fonction par fonction, et tout ce qui n'a **pas** été vérifié : `docs/next/AUDIT-macOS.md` (§7) et la seconde
+partie de `docs/FEATURE_MATRIX.md`.
+
+---
+
+# Rapport de tests — 1.0, 2026-11-18
 
 Machine : MacBook Pro (Mac17,6), macOS 27.0, Xcode 27.2, Swift 6.4. Aucun résultat n'est simulé : chaque test lit le
 serveur ou le disque.
