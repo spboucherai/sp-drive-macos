@@ -289,8 +289,7 @@ final class QueuePolicyTests: LiveCase {
         XCTAssertGreaterThan(upSeconds, 2.6, "4 MiB at 1 MiB/s cannot take less than ~3 s (one second of burst allowed)"); XCTAssertLessThan(upSeconds, 9)
         let item = try await api.listFolder(folder.id).files.first!
         XCTAssertEqual(item.sha256, f.sha)
-        // downloads are paced by back-pressure on the stream: what the URL loader had already buffered (about 1 MiB on
-        // loopback) arrives at once, the rest at the capped rate — hence a larger file and a bound that allows for it
+        // downloads are paced on the delivery of the bytes to the engine: what the loader buffered does not escape the cap
         let g = try randomFile("retour-source.bin", bytes: 6 * 1024 * 1024)
         let big = try await upload(g.url)
         t0 = Date()
@@ -298,7 +297,7 @@ final class QueuePolicyTests: LiveCase {
         let down = try await q.enqueueDownload(big, to: dest)
         try await waitUntil(timeout: 30) { await q.get(down.id)?.state == .done }
         let downSeconds = Date().timeIntervalSince(t0)
-        XCTAssertGreaterThan(downSeconds, 3.0, "6 MiB at 1 MiB/s, minus one second of burst and the loader's buffer"); XCTAssertEqual(try Hashing.sha256Hex(of: dest).sha256, g.sha)
+        XCTAssertGreaterThan(downSeconds, 4.5, "6 MiB at 1 MiB/s, minus one second of burst"); XCTAssertEqual(try Hashing.sha256Hex(of: dest).sha256, g.sha)
         // cap lifted: the same upload is several times faster
         await q.setLimits(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
         t0 = Date()

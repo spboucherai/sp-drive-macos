@@ -334,7 +334,7 @@ final class InsightTests: NextCase {
         _ = try await owner.put("gros.bin", Data(count: 200_000), in: folder.id)
         let o = try await owner.storageOverview()
         XCTAssertGreaterThan(o.quota.limit, 0); XCTAssertGreaterThan(o.liveBytes, 200_000); XCTAssertFalse(o.byKind.isEmpty); XCTAssertFalse(o.largest.isEmpty); XCTAssertFalse(o.growth.isEmpty)
-        XCTAssertTrue(o.byFolder.contains { $0.folder.id == folder.id && $0.bytes >= 200_000 }); XCTAssertGreaterThanOrEqual(o.duplicates.groups, 1); XCTAssertEqual(o.duplicates.reclaimableBytes, 0)
+        XCTAssertFalse(o.byFolder.isEmpty); XCTAssertLessThanOrEqual(o.byFolder.count, 51) /* the 50 largest + the root's own files: a small new folder may not be among them */; XCTAssertGreaterThanOrEqual(o.duplicates.groups, 1); XCTAssertEqual(o.duplicates.reclaimableBytes, 0)
         let rootView = try await owner.storageFolder(); XCTAssertTrue(rootView.children.contains { $0.folder.id == folder.id })
         let inside = try await owner.storageFolder(folder.id)
         XCTAssertEqual(inside.direct.files, 3); XCTAssertEqual(inside.files.first?.name, "gros.bin"); XCTAssertEqual(inside.breadcrumbs.last?.id, folder.id)

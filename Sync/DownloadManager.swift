@@ -104,10 +104,13 @@ public final class DownloadEngine: Sendable {
         sink.onData = { data in
             try state.write(data)
             progress(state.written, state.total)
-            if let throttle, let task = taskBox.task {
-                // pace the stream: hold the task while the bucket refills
-                task.suspend()
-                Task { try? await throttle.consume(data.count); task.resume() }
+            if let throttle {
+                // pace the stream: hold the session's (serial, dedicated) delegate queue while the bucket refills. Nothing more
+                // is delivered meanwhile — not even the completion — so the cap holds even when the whole body already sits
+                // in the loader's buffers (suspending the task did not: buffered data and the completion still came through).
+                let gate = DispatchSemaphore(value: 0)
+                Task.detached { try? await throttle.consume(data.count); gate.signal() }
+                gate.wait()
             }
         }
         do { try await stream.run(request, sink: sink) { taskBox.task = $0 } } catch {
