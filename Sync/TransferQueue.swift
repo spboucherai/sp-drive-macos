@@ -46,14 +46,35 @@ public struct ConcurrencyAdvisor: Sendable {
     public var manual: Int?
     public private(set) var limit = 3
     private var best: Double = 0, sinceChange = 0, lastDirection = 0
+    /// Outcomes of the last transfers (true = succeeded), newest last.
+    private var outcomes: [Bool] = []
     public static let range = 1...6
+    /// Size of the window of outcomes the error rate is computed on.
+    public static let errorWindow = 10
     public init(manual: Int? = nil) { self.manual = manual }
-    /// The number of transfers allowed now.
-    public func allowed(network: NetworkStatus) -> Int {
+    /// The number of transfers allowed now. A number chosen by the person is respected as it is; otherwise the measured
+    /// limit is capped by the network (Low Data Mode, metered link) and by power (Low Power Mode, low battery).
+    public func allowed(network: NetworkStatus, power: PowerState = .unconstrained) -> Int {
         if let manual { return min(max(manual, 1), 12) }
         if network.constrained { return 1 }
-        if network.expensive { return min(limit, 2) }
-        return limit
+        var n = limit
+        if network.expensive { n = min(n, 2) }
+        return max(1, min(n, power.concurrencyCap))
+    }
+    /// Share of failures among the recent outcomes (0 when nothing was recorded).
+    public var errorRate: Double { outcomes.isEmpty ? 0 : Double(outcomes.filter { !$0 }.count) / Double(outcomes.count) }
+    /// Records how one transfer attempt ended (transient failures only: a refusal by the server says nothing about the link).
+    /// When at least three of the recent attempts failed and they are a third or more of the window, one slot is given
+    /// back — down to a single transfer — and growth waits for a few calm windows.
+    public mutating func record(success: Bool) {
+        outcomes.append(success)
+        if outcomes.count > ConcurrencyAdvisor.errorWindow { outcomes.removeFirst(outcomes.count - ConcurrencyAdvisor.errorWindow) }
+        guard manual == nil, !success else { return }
+        let failures = outcomes.filter { !$0 }.count
+        if failures >= 3, errorRate >= 1.0 / 3.0 {
+            if limit > ConcurrencyAdvisor.range.lowerBound { limit -= 1 }
+            outcomes.removeAll(); best = 0; lastDirection = -1; sinceChange = -3
+        }
     }
     /// Feeds one measurement window: aggregate bytes per second, and whether every slot was in use.
     public mutating func observe(throughput: Double, saturated: Bool) {
@@ -91,9 +112,17 @@ public actor TransferQueue {
     private var started = false
     private var ticker: Task<Void, Never>?
     private var windowBytes: Int64 = 0
+    private let power: PowerSource?
+    private var powerAware = true
+    private var lastPower = PowerState.unconstrained
+    /// Priority of each running transfer (to make room for what the person asks for).
+    private var runningPriority: [String: Int] = [:]
+    /// Transfers stopped to make room: back in the queue, not failures.
+    private var preempted: Set<String> = []
+    public var retryPolicy = RetryPolicy.transfers
 
-    public init(api: APIClient, store: MetadataStore, workDirectory: URL, deviceName: String, network: NetworkMonitor? = nil) {
-        self.api = api; self.store = store; self.workDirectory = workDirectory; self.network = network
+    public init(api: APIClient, store: MetadataStore, workDirectory: URL, deviceName: String, network: NetworkMonitor? = nil, power: PowerSource? = nil) {
+        self.api = api; self.store = store; self.workDirectory = workDirectory; self.network = network; self.power = power
         uploader = UploadEngine(api: api, store: store, throttle: uploadThrottle, deviceName: deviceName)
         downloader = DownloadEngine(api: api, throttle: downloadThrottle)
         conflicts = ConflictResolver(api: api, store: store)
@@ -133,7 +162,25 @@ public actor TransferQueue {
         return s
     }
     public var isPaused: Bool { paused }
-    public var concurrencyLimit: Int { advisor.allowed(network: network?.status ?? .unknown) }
+    private var powerState: PowerState { powerAware ? (power?.state ?? .unconstrained) : .unconstrained }
+    public var concurrencyLimit: Int { advisor.allowed(network: network?.status ?? .unknown, power: powerState) }
+    /// What the queue is doing and why, for the transfer centre.
+    public struct Policy: Sendable, Equatable {
+        public var concurrency = 1; public var measuredLimit = 3; public var manual: Int?; public var errorRate = 0.0
+        public var power = PowerState.unconstrained; public var deferringBackground = false; public var paused = false
+        public var uploadLimit: Int64 = 0; public var downloadLimit: Int64 = 0
+        public init() {}
+    }
+    public func policy() async -> Policy {
+        var p = Policy()
+        p.concurrency = concurrencyLimit; p.measuredLimit = advisor.limit; p.manual = advisor.manual; p.errorRate = advisor.errorRate
+        p.power = powerState; p.deferringBackground = powerState.defersBackground; p.paused = paused
+        p.uploadLimit = await uploadThrottle.bytesPerSecond; p.downloadLimit = await downloadThrottle.bytesPerSecond
+        return p
+    }
+    /// Whether battery and Low Power Mode shape the queue (on by default).
+    public func setPowerAware(_ on: Bool) { powerAware = on; pump() }
+    public func setRetryPolicy(_ p: RetryPolicy) { retryPolicy = p }
 
     // MARK: Enqueue
     private func insert(_ t: Transfer) throws {
@@ -178,16 +225,16 @@ public actor TransferQueue {
         if state != .running { live[id] = nil }
         if let t = get(id) { emit(.changed(t)) }
     }
-    public func pause(_ id: String) { guard let t = get(id), t.isActive else { return }; tasks[id]?.cancel(); tasks[id] = nil; set(id, state: .paused); pump() }
+    public func pause(_ id: String) { guard let t = get(id), t.isActive else { return }; tasks[id]?.cancel(); tasks[id] = nil; runningPriority[id] = nil; set(id, state: .paused); pump() }
     public func resume(_ id: String) { guard let t = get(id), t.state == .paused || t.state == .failed else { return }; set(id, state: .queued); pump() }
     public func retry(_ id: String) { resume(id) }
     public func cancel(_ id: String) {
         guard let t = get(id), t.state != .done, t.state != .cancelled else { return }
-        tasks[id]?.cancel(); tasks[id] = nil
+        tasks[id]?.cancel(); tasks[id] = nil; runningPriority[id] = nil
         set(id, state: .cancelled, finished: true); cleanup(t); pump()
     }
     /// Pauses everything: running transfers stop at once and keep what they have (server session, partial file).
-    public func pauseAll() { paused = true; for (id, task) in tasks { task.cancel(); set(id, state: .queued) }; tasks.removeAll() }
+    public func pauseAll() { paused = true; for (id, task) in tasks { task.cancel(); set(id, state: .queued) }; tasks.removeAll(); runningPriority.removeAll() }
     public func resumeAll() { paused = false; pump() }
     public func clearFinished() {
         for r in (try? store.db.query("SELECT id FROM transfers WHERE state IN ('done','cancelled')")) ?? [] { if let id = r["id"]?.text { emit(.removed(id)) } }
@@ -195,6 +242,13 @@ public actor TransferQueue {
     }
     public func remove(_ id: String) { guard let t = get(id), !t.isActive else { return }; cleanup(t); _ = try? store.db.run("DELETE FROM transfers WHERE id = ?", [.text(id)]); emit(.removed(id)) }
     public func setManualConcurrency(_ n: Int?) { advisor.manual = n; pump() }
+    /// Changes the priority of a transfer that has not finished ("send this one first").
+    public func setPriority(_ id: String, _ priority: Int) {
+        _ = try? store.db.run("UPDATE transfers SET priority = ? WHERE id = ? AND state IN ('queued','running','paused','failed')", [.int(Int64(priority)), .text(id)])
+        if runningPriority[id] != nil { runningPriority[id] = priority }
+        if let t = get(id) { emit(.changed(t)) }
+        pump()
+    }
     public func setLimits(uploadBytesPerSecond: Int64, downloadBytesPerSecond: Int64) async {
         await uploadThrottle.setLimit(uploadBytesPerSecond); await downloadThrottle.setLimit(downloadBytesPerSecond)
     }
@@ -215,7 +269,7 @@ public actor TransferQueue {
         }
         pump()
     }
-    public func stop() { ticker?.cancel(); ticker = nil; started = false; for t in tasks.values { t.cancel() }; tasks.removeAll() }
+    public func stop() { ticker?.cancel(); ticker = nil; started = false; for t in tasks.values { t.cancel() }; tasks.removeAll(); runningPriority.removeAll() }
     /// Call when the network came back or the machine woke up: retries waiting for their back-off run now.
     public func kick() { _ = try? store.db.run("UPDATE transfers SET updated_at = 0 WHERE state = 'queued'"); pump() }
 
@@ -224,6 +278,7 @@ public actor TransferQueue {
         let running = tasks.count
         if running > 0 { advisor.observe(throughput: Double(windowBytes) / 2.0, saturated: running >= concurrencyLimit) }
         windowBytes = 0
+        lastPower = powerState
         let now = Date()
         for (id, l) in live where now.timeIntervalSince(l.savedAt) >= 2 {
             _ = try? store.db.run("UPDATE transfers SET done = ? WHERE id = ?", [.int(l.done), .text(id)]); live[id]?.savedAt = now
@@ -234,13 +289,22 @@ public actor TransferQueue {
     private func pump() {
         guard started, !paused else { return }
         if let network, !network.status.online { return }
-        let free = concurrencyLimit - tasks.count
-        guard free > 0 else { return }
+        let limit = concurrencyLimit
+        // in Low Power Mode or on a nearly empty battery, only what the person asked for runs
+        let floor = powerState.defersBackground ? TransferPriority.userInitiated : Int.min
         // queued transfers whose back-off is over (updated_at holds the earliest next try)
-        let rows = (try? store.db.query("SELECT * FROM transfers WHERE state = 'queued' AND updated_at <= ? ORDER BY priority DESC, ord LIMIT ?", [.double(Date().timeIntervalSince1970), .int(Int64(free + tasks.count))])) ?? []
-        for t in rows.map(TransferQueue.transfer) where tasks[t.id] == nil && tasks.count < concurrencyLimit {
+        let rows = ((try? store.db.query("SELECT * FROM transfers WHERE state = 'queued' AND updated_at <= ? AND priority >= ? ORDER BY priority DESC, ord LIMIT ?",
+                                         [.double(Date().timeIntervalSince1970), .int(Int64(max(floor, -1_000_000))), .int(Int64(limit + tasks.count + 1))])) ?? []).map(TransferQueue.transfer).filter { tasks[$0.id] == nil }
+        // every slot busy and something more important waits: the least important running transfer goes back to the queue (it keeps what it has)
+        if tasks.count >= limit, let next = rows.first, next.priority >= TransferPriority.userInitiated,
+           let victim = runningPriority.filter({ $0.value < next.priority }).min(by: { $0.value < $1.value }) {
+            preempted.insert(victim.key); tasks[victim.key]?.cancel(); tasks[victim.key] = nil; runningPriority[victim.key] = nil
+            set(victim.key, state: .queued)
+        }
+        for t in rows where tasks[t.id] == nil && tasks.count < limit {
             set(t.id, state: .running)
             live[t.id] = (t.done, 0, t.done, Date(), Date())
+            runningPriority[t.id] = t.priority
             tasks[t.id] = Task { [weak self] in await self?.run(t) }
         }
     }
@@ -274,7 +338,8 @@ public actor TransferQueue {
         }
     }
     private func finish(_ t: Transfer, item: DriveItem?) {
-        tasks[t.id] = nil
+        tasks[t.id] = nil; runningPriority[t.id] = nil; preempted.remove(t.id)
+        advisor.record(success: true)
         live[t.id]?.done = t.size
         set(t.id, state: .done, finished: true)
         _ = try? store.db.run("UPDATE transfers SET done = size WHERE id = ?", [.text(t.id)])
@@ -283,14 +348,16 @@ public actor TransferQueue {
         pump()
     }
     private func fail(_ t: Transfer, _ e: DriveError) {
-        tasks[t.id] = nil
+        if preempted.remove(t.id) != nil { pump(); return } // stopped to make room: its slot may already belong to another run of the same transfer
+        tasks[t.id] = nil; runningPriority[t.id] = nil
         guard let now = get(t.id), now.state == .running else { pump(); return } // paused or cancelled meanwhile: that decision stands
         if e == .cancelled { set(t.id, state: .queued); pump(); return }
         let attempts = t.attempts + 1
         _ = try? store.db.run("UPDATE transfers SET attempts = ? WHERE id = ?", [.int(Int64(attempts)), .text(t.id)])
         if e.isTransient || e.code == "content_changed" || e == .unauthenticated {
             // not a verdict: wait and try again, with what was already transferred
-            let delay = min(600.0, pow(2.0, Double(min(attempts, 10))) * 2)
+            if e.isTransient { advisor.record(success: false) }
+            let delay = retryPolicy.delay(attempt: attempts)
             set(t.id, state: .queued, error: e.errorDescription, nextTry: Date().addingTimeInterval(delay))
             if attempts == 6, let cur = get(t.id) { emit(.failed(cur, persistent: true)) }
         } else {

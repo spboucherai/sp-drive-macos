@@ -66,4 +66,35 @@ public struct ConflictResolver: Sendable {
         }
         try store.db.run("UPDATE conflicts SET resolved_at = ?, resolution = ? WHERE id = ?", [.double(Date().timeIntervalSince1970), .text(choice.rawValue), .text(c.id)])
     }
+    /// "Keep mine" without losing the file's history: this device's content becomes the **new current version** of the
+    /// original file (the server's version stays in its version history, restorable), and the conflict copy goes to the
+    /// trash. The upload names the version it replaces: if the file changed yet again meanwhile, nothing is overwritten
+    /// and `version_conflict` is thrown so that the person looks again.
+    @discardableResult public func resolveKeepingMineAsNewVersion(_ c: SyncConflict, workDirectory: URL, deviceName: String) async throws -> DriveItem {
+        guard let copyID = c.copyID, let mine = try await api.item(copyID, kind: .file), !mine.isTrashed else { throw DriveError.local("la copie de cet appareil n’existe plus") }
+        guard let original = try await api.item(c.itemID, kind: .file), !original.isTrashed else {
+            // the original is gone: there is no history to extend; this device's copy simply takes the name
+            try await resolve(c, .keepMine)
+            return try await api.item(copyID, kind: .file) ?? mine
+        }
+        var result = original
+        if mine.sha256 != original.sha256 {
+            let dir = workDirectory.appendingPathComponent("conflicts/\(c.id)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let local = try PathSafety.child(of: dir, named: "content")
+            try await DownloadEngine(api: api).download(fileID: mine.id, versionID: mine.versionID, sha256: mine.sha256, size: mine.size, to: local, partial: dir.appendingPathComponent("content.part"))
+            let outcome = try await UploadEngine(api: api, store: nil, deviceName: deviceName)
+                .upload(file: local, to: .newVersion(fileID: original.id, folderID: original.parentID ?? "root", name: original.name, baseVersionID: original.versionID))
+            guard case .stored(let updated) = outcome else {
+                // changed again while we were deciding: the engine made a second copy of the same bytes — one is enough
+                try? await api.trash(Selection(fileIds: [outcome.item.id]))
+                throw DriveError.server(status: 409, code: "version_conflict", message: "", extra: [:])
+            }
+            result = updated
+        }
+        try await api.trash(Selection(fileIds: [copyID]))
+        try? store.upsert([result])
+        try store.db.run("UPDATE conflicts SET resolved_at = ?, resolution = ? WHERE id = ?", [.double(Date().timeIntervalSince1970), .text("keepMineVersion"), .text(c.id)])
+        return result
+    }
 }

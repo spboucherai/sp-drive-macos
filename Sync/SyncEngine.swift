@@ -12,6 +12,8 @@ public struct SyncStatus: Sendable, Equatable {
     public var openConflicts = 0
     public var transfers = TransferQueue.Summary()
     public var lastError: String?
+    /// How server changes reach this device right now: pushed stream, polling fallback, or nothing (paused, stopped).
+    public var events = EventListener.Channel.off
     public init() {}
 }
 
@@ -35,16 +37,47 @@ public actor SyncEngine {
     /// Seconds between two looks at the server when nothing happens; shortens after activity.
     public static let pollRange: ClosedRange<Double> = 10...120
     private var interval = SyncEngine.pollRange.lowerBound
+    private var eventSource: RemoteEventSource?
+    private var listener: EventListener?
+    private var channelWatch: Task<Void, Never>?
+    private let eventPollInterval: Double
 
-    public init(api: APIClient, store: MetadataStore, network: NetworkMonitor, workDirectory: URL, deviceName: String) {
-        self.api = api; self.store = store; self.network = network
+    /// - Parameters:
+    ///   - power: battery and Low Power Mode, read by the transfer queue (nil = ignore power).
+    ///   - eventPollInterval: seconds between two looks at the head revision while no event stream is live (contract: 30 s).
+    public init(api: APIClient, store: MetadataStore, network: NetworkMonitor, workDirectory: URL, deviceName: String, power: PowerSource? = nil, eventPollInterval: Double = 30) {
+        self.api = api; self.store = store; self.network = network; self.eventPollInterval = eventPollInterval
         journal = OperationJournal(api: api, store: store)
-        transfers = TransferQueue(api: api, store: store, workDirectory: workDirectory, deviceName: deviceName, network: network)
+        transfers = TransferQueue(api: api, store: store, workDirectory: workDirectory, deviceName: deviceName, network: network, power: power)
         detector = ChangeDetector(api: api, store: store)
         conflicts = ConflictResolver(api: api, store: store)
     }
     /// Called after remote changes were written to the mirror (the app signals the File Provider and refreshes its views).
     public func setRemoteChangeHandler(_ h: @escaping @Sendable ([DetectedChange]) async -> Void) { onRemoteChanges = h }
+
+    /// Plugs in the pushed event stream (SSE in 2.0). Without one, or while it is down, the engine polls.
+    public func setEventSource(_ source: RemoteEventSource?) async {
+        eventSource = source
+        if listener != nil { await stopListening(); await startListening() }
+    }
+    private func startListening() async {
+        guard listener == nil else { return }
+        let api = self.api
+        let l = EventListener(source: eventSource, pollInterval: eventPollInterval, head: { try await api.syncCursor().head }, onChange: { [weak self] _ in await self?.poke() })
+        listener = l
+        channelWatch = Task { [weak self] in for await c in await l.channels() { await self?.channelChanged(c) } }
+        await l.start()
+    }
+    private func stopListening() async {
+        channelWatch?.cancel(); channelWatch = nil
+        await listener?.stop(); listener = nil
+        await channelChanged(.off)
+    }
+    private func channelChanged(_ c: EventListener.Channel) async {
+        guard status.events != c else { return }
+        status.events = c
+        for l in listeners.values { l.yield(status) }
+    }
 
     // MARK: Status
     public func statusStream() -> AsyncStream<SyncStatus> {
@@ -63,6 +96,7 @@ public actor SyncEngine {
         s.pendingOperations = (try? journal.pendingCount()) ?? 0
         s.openConflicts = (try? conflicts.openCount()) ?? 0
         s.transfers = await transfers.summary()
+        s.events = status.events // may have changed while this method was suspended
         guard s != status else { return }
         status = s
         for l in listeners.values { l.yield(s) }
@@ -77,14 +111,15 @@ public actor SyncEngine {
         }
         transferWatch = Task { [weak self, transfers] in for await _ in await transfers.events() { await self?.publish() } }
         loop = Task { [weak self] in await self?.runLoop() }
+        if !paused { await startListening() }
     }
     public func stop() async {
         loop?.cancel(); netWatch?.cancel(); transferWatch?.cancel(); loop = nil; netWatch = nil; transferWatch = nil
-        await transfers.stop(); wake()
+        await transfers.stop(); await stopListening(); wake()
     }
     /// Pauses syncing: transfers stop and keep their progress, the journal keeps recording, nothing is sent or pulled.
-    public func pause() async { paused = true; await transfers.pauseAll(); await publish(.paused) }
-    public func resume() async { paused = false; await transfers.resumeAll(); poke() }
+    public func pause() async { paused = true; await transfers.pauseAll(); await stopListening(); await publish(.paused) }
+    public func resume() async { paused = false; await transfers.resumeAll(); if loop != nil { await startListening() }; poke() }
     public var isPaused: Bool { paused }
     /// Asks for a sync pass now (something was just decided locally, the machine woke up, the person asked).
     public func poke() { interval = SyncEngine.pollRange.lowerBound; poked = true; wake() }

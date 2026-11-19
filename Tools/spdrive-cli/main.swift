@@ -52,6 +52,21 @@ do {
             if s == .approved { out("token\t\(try api.tokens.readToken() ?? "")"); break }
             if s != .pending { out("status\t\(s)"); exit(1) }
         }
+    case "queue-put", "queue-get":
+        // a real transfer queue in its own process (the tests kill it mid-transfer): queue-put <db> <workdir> <file> <parent> <bytes/s> | queue-get <db> <workdir> <fileId> <dest> <bytes/s>
+        let store = try MetadataStore(url: URL(fileURLWithPath: args[1]))
+        let q = TransferQueue(api: api, store: store, workDirectory: URL(fileURLWithPath: args[2]), deviceName: "cli")
+        let rate = Int64(args[5]) ?? 0
+        await q.setLimits(uploadBytesPerSecond: rate, downloadBytesPerSecond: rate)
+        let t: Transfer
+        if args[0] == "queue-put" { t = try await q.enqueueUpload(file: URL(fileURLWithPath: args[3]), parent: args[4], priority: TransferPriority.userInitiated) }
+        else {
+            guard let cur = try await api.item(args[3], kind: .file) else { throw DriveError.local("fichier inconnu") }
+            t = try await q.enqueueDownload(cur, to: URL(fileURLWithPath: args[4]), priority: TransferPriority.userInitiated)
+        }
+        await q.start(); out("queued\t\(t.id)"); fflush(stdout)
+        while await q.get(t.id)?.state != .done { try await Task.sleep(nanoseconds: 100_000_000) }
+        out("done\t\(t.id)")
     default: FileHandle.standardError.write(Data("commande inconnue\n".utf8)); exit(2)
     }
 } catch { FileHandle.standardError.write(Data("erreur: \((error as? DriveError)?.code ?? "?") \(error.localizedDescription)\n".utf8)); exit(1) }
