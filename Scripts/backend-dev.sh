@@ -1,20 +1,67 @@
 #!/bin/bash
-# Author: Simon-Pierre Boucher — contact@spboucher.ai
-# File: Scripts/backend-dev.sh
-# Description: A real SP Drive backend for the app's functional tests, on this Mac: the cluster's code (a clone of
-# sp-drive.git in ~/dev/sp-drive-testbed), its own PostgreSQL database, its own data folder and master key, the job
-# worker inline. Nothing here touches production. Since SP Drive 2.0 the clone follows branch `next` (set
-# SPDRIVE_TESTBED_REF to pin another ref): `start` fetches it, installs the locked dependencies and builds the local
-# text helper (PDF text, OCR, embeddings). The AI provider of the testbed is a FAKE local server (Scripts/fake-ai.mjs):
-# no real model and no real key are ever involved.
-#   Scripts/backend-dev.sh start      fresh database + data, one account, prints the environment for tests
-#   Scripts/backend-dev.sh stop
-#   Scripts/backend-dev.sh env        prints the environment of the running instance
-#   Scripts/backend-dev.sh web-stop | web-start     takes the server down / brings it back (same data): "offline" tests
-#   Scripts/backend-dev.sh token <device name>      a new device session token for the test account
-#   Scripts/backend-dev.sh token2 <device name>     … for the second test account (member@example.test), for sharing tests
-#   Scripts/backend-dev.sh ai on|off                starts / stops the fake AI provider (the API reads it at start: follow with web-stop, web-start)
-#   Scripts/backend-dev.sh approve <CODE>           approves a device-link code as the test account (fresh passkey)
+# =============================================================================
+#                  SP BOUCHER | INFRASTRUCTURE & AUTOMATION
+#             ARTIFICIAL INTELLIGENCE • FINANCE • ENGINEERING
+# =============================================================================
+#
+# Project          : SP Drive pour macOS
+# File             : Scripts/backend-dev.sh
+# Description      : A real SP Drive backend for the app's functional tests, on
+#                    this Mac: the cluster's code (a clone of sp-drive.git in
+#                    ~/dev/sp-drive-testbed), its own PostgreSQL database, its
+#                    own data folder and master key, the job worker inline.
+#                    Nothing here touches production. Since SP Drive 2.0 the
+#                    clone follows branch `next` (set SPDRIVE_TESTBED_REF to
+#                    pin another ref): `start` fetches it, installs the locked
+#                    dependencies and builds the local text helper (PDF text,
+#                    OCR, embeddings). The AI provider of the testbed is a FAKE
+#                    local server (Scripts/fake-ai.mjs): no real model and no
+#                    real key are ever involved. Scripts/backend-dev.sh start
+#                    fresh database + data, one account, prints the environment
+#                    for tests Scripts/backend-dev.sh stop
+#                    Scripts/backend-dev.sh env prints the environment of the
+#                    running instance Scripts/backend-dev.sh web-stop |
+#                    web-start takes the server down / brings it back (same
+#                    data): "offline" tests Scripts/backend-dev.sh token
+#                    <device name> a new device session token for the test
+#                    account Scripts/backend-dev.sh token2 <device name> … for
+#                    the second test account (member@example.test), for sharing
+#                    tests Scripts/backend-dev.sh ai on|off starts / stops the
+#                    fake AI provider (the API reads it at start: follow with
+#                    web-stop, web-start) Scripts/backend-dev.sh approve <CODE>
+#                    approves a device-link code as the test account (fresh
+#                    passkey)
+# Module           : Scripts
+# Repository       : https://git.spboucher.ai/sp-drive-macos
+# Created          : 2026-11-18
+# Last Modified    : 2026-11-19
+#
+# Author           : Simon-Pierre Boucher
+# Position         : Professor of Finance
+# Institution      : Université du Québec en Outaouais (UQO)
+# Organization     : SP Boucher
+# Website          : https://spboucher.ai
+# Git              : https://git.spboucher.ai
+#
+# Preferred Contact: support@spboucher.ai
+# Technical Contact: dev@spboucher.ai
+# Security/Admin   : admin@spboucher.ai
+#
+# Copyright (c) 2026
+# Simon-Pierre Boucher
+# All rights reserved where applicable. This file is governed by the
+# applicable project license, copyright notices and relevant law.
+# Existing third-party rights and notices remain unaffected.
+#
+# License          : None specified (no license file in this repository)
+#
+# Do not embed credentials, private keys, access tokens,
+# certificates or confidential personal information.
+#
+# =============================================================================
+# END OF SP BOUCHER SOURCE HEADER
+# =============================================================================
+
 set -euo pipefail
 export PATH="/opt/homebrew/opt/postgresql@17/bin:/opt/homebrew/bin:$PATH"
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"

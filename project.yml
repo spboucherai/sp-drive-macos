@@ -1,6 +1,16 @@
-# Author: Simon-Pierre Boucher — contact@spboucher.ai
-# File: project.yml
-# Description: XcodeGen definition of SP Drive (native macOS app + File Provider extension). The engine room is the Swift package at the root (SPDriveCore, SPDriveSync).
+# =============================================================================
+# SP BOUCHER | SOURCE FILE
+# =============================================================================
+# Project      : SP Drive pour macOS
+# File         : project.yml
+# Author       : Simon-Pierre Boucher | https://spboucher.ai
+# Contact      : support@spboucher.ai
+# Copyright    : (c) 2026 Simon-Pierre Boucher
+# License      : None specified (no license file in this repository)
+# =============================================================================
+# END OF SP BOUCHER SOURCE HEADER
+# =============================================================================
+
 name: SPDrive
 options:
   bundleIdPrefix: ai.spboucher
